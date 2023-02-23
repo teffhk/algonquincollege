@@ -1,0 +1,746 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20211204203230
+Username: W10-SO000022\so000022
+RunAs User: W10-SO000022\so000022
+Configuration Name: 
+Machine: W10-SO000022 (Microsoft Windows NT 10.0.19043.0)
+Host Application: C:\Windows\System32\WindowsPowerShell\v1.0\powershell_ise.exe
+Process ID: 7200
+PSVersion: 5.1.19041.1320
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.19041.1320
+BuildVersion: 10.0.19041.1320
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+
+Program Menu Options:
+---------------------
+1. Create a new user
+2. Remove a user
+3. Create 100 Users
+4. Create Users from File
+5. Exit
+
+Please select an option (1-5):
+-----------------
+Create a new user
+Please enter the UserID to create:
+Please enter secure password for the new user:
+
+UserID Testuser has been created successfully!
+
+Please enter a custom group name to add the new user(Left blank if don't need):
+
+Group TestGroup doesn't exist, creating new group...
+Testuser has been added into the new group TestGroup successfully!
+
+Program Menu Options:
+---------------------
+1. Create a new user
+2. Remove a user
+3. Create 100 Users
+4. Create Users from File
+5. Exit
+
+Please select an option (1-5):
+-----------------------------------------
+Remove a user, existng UserIDs as follow
+
+Name
+----
+Administrator
+DefaultAccount
+Guest
+so000022
+Testuser
+User1a
+User1b
+User1c
+User1d
+User2a
+User2c
+User2d
+WDAGUtilityAccount
+
+
+Please select and enter the UserID to remove:
+
+UserID Testuser has been removed successfully!
+
+Do you want to delete the User Home Directory and contents as well? (Y/N):
+
+User Home Directory and contents have been deleted successfully!
+
+Program Menu Options:
+---------------------
+1. Create a new user
+2. Remove a user
+3. Create 100 Users
+4. Create Users from File
+5. Exit
+
+Please select an option (1-5):
+---------------------------------
+Create 100 Users, User00-User99
+
+UserID User00 has been created successfully!
+
+UserID User01 has been created successfully!
+
+UserID User02 has been created successfully!
+
+UserID User03 has been created successfully!
+
+UserID User04 has been created successfully!
+
+UserID User05 has been created successfully!
+
+UserID User06 has been created successfully!
+
+UserID User07 has been created successfully!
+
+UserID User08 has been created successfully!
+
+UserID User09 has been created successfully!
+
+UserID User10 has been created successfully!
+
+UserID User11 has been created successfully!
+
+UserID User12 has been created successfully!
+
+UserID User13 has been created successfully!
+
+UserID User14 has been created successfully!
+
+UserID User15 has been created successfully!
+
+UserID User16 has been created successfully!
+
+UserID User17 has been created successfully!
+
+UserID User18 has been created successfully!
+
+UserID User19 has been created successfully!
+
+UserID User20 has been created successfully!
+
+UserID User21 has been created successfully!
+
+UserID User22 has been created successfully!
+
+UserID User23 has been created successfully!
+
+UserID User24 has been created successfully!
+
+UserID User25 has been created successfully!
+
+UserID User26 has been created successfully!
+
+UserID User27 has been created successfully!
+
+UserID User28 has been created successfully!
+
+UserID User29 has been created successfully!
+
+UserID User30 has been created successfully!
+
+UserID User31 has been created successfully!
+
+UserID User32 has been created successfully!
+
+UserID User33 has been created successfully!
+
+UserID User34 has been created successfully!
+
+UserID User35 has been created successfully!
+
+UserID User36 has been created successfully!
+
+UserID User37 has been created successfully!
+
+UserID User38 has been created successfully!
+
+UserID User39 has been created successfully!
+
+UserID User40 has been created successfully!
+
+UserID User41 has been created successfully!
+
+UserID User42 has been created successfully!
+
+UserID User43 has been created successfully!
+
+UserID User44 has been created successfully!
+
+UserID User45 has been created successfully!
+
+UserID User46 has been created successfully!
+
+UserID User47 has been created successfully!
+
+UserID User48 has been created successfully!
+
+UserID User49 has been created successfully!
+
+UserID User50 has been created successfully!
+
+UserID User51 has been created successfully!
+
+UserID User52 has been created successfully!
+
+UserID User53 has been created successfully!
+
+UserID User54 has been created successfully!
+
+UserID User55 has been created successfully!
+
+UserID User56 has been created successfully!
+
+UserID User57 has been created successfully!
+
+UserID User58 has been created successfully!
+
+UserID User59 has been created successfully!
+
+UserID User60 has been created successfully!
+
+UserID User61 has been created successfully!
+
+UserID User62 has been created successfully!
+
+UserID User63 has been created successfully!
+
+UserID User64 has been created successfully!
+
+UserID User65 has been created successfully!
+
+UserID User66 has been created successfully!
+
+UserID User67 has been created successfully!
+
+UserID User68 has been created successfully!
+
+UserID User69 has been created successfully!
+
+UserID User70 has been created successfully!
+
+UserID User71 has been created successfully!
+
+UserID User72 has been created successfully!
+
+UserID User73 has been created successfully!
+
+UserID User74 has been created successfully!
+
+UserID User75 has been created successfully!
+
+UserID User76 has been created successfully!
+
+UserID User77 has been created successfully!
+
+UserID User78 has been created successfully!
+
+UserID User79 has been created successfully!
+
+UserID User80 has been created successfully!
+
+UserID User81 has been created successfully!
+
+UserID User82 has been created successfully!
+
+UserID User83 has been created successfully!
+
+UserID User84 has been created successfully!
+
+UserID User85 has been created successfully!
+
+UserID User86 has been created successfully!
+
+UserID User87 has been created successfully!
+
+UserID User88 has been created successfully!
+
+UserID User89 has been created successfully!
+
+UserID User90 has been created successfully!
+
+UserID User91 has been created successfully!
+
+UserID User92 has been created successfully!
+
+UserID User93 has been created successfully!
+
+UserID User94 has been created successfully!
+
+UserID User95 has been created successfully!
+
+UserID User96 has been created successfully!
+
+UserID User97 has been created successfully!
+
+UserID User98 has been created successfully!
+
+UserID User99 has been created successfully!
+
+Program Menu Options:
+---------------------
+1. Create a new user
+2. Remove a user
+3. Create 100 Users
+4. Create Users from File
+5. Exit
+
+Please select an option (1-5):
+-----------------------------------------
+Remove a user, existng UserIDs as follow
+
+Name
+----
+Administrator
+DefaultAccount
+Guest
+so000022
+User00
+User01
+User02
+User03
+User04
+User05
+User06
+User07
+User08
+User09
+User10
+User11
+User12
+User13
+User14
+User15
+User16
+User17
+User18
+User19
+User1a
+User1b
+User1c
+User1d
+User20
+User21
+User22
+User23
+User24
+User25
+User26
+User27
+User28
+User29
+User2a
+User2c
+User2d
+User30
+User31
+User32
+User33
+User34
+User35
+User36
+User37
+User38
+User39
+User40
+User41
+User42
+User43
+User44
+User45
+User46
+User47
+User48
+User49
+User50
+User51
+User52
+User53
+User54
+User55
+User56
+User57
+User58
+User59
+User60
+User61
+User62
+User63
+User64
+User65
+User66
+User67
+User68
+User69
+User70
+User71
+User72
+User73
+User74
+User75
+User76
+User77
+User78
+User79
+User80
+User81
+User82
+User83
+User84
+User85
+User86
+User87
+User88
+User89
+User90
+User91
+User92
+User93
+User94
+User95
+User96
+User97
+User98
+User99
+WDAGUtilityAccount
+
+
+Please select and enter the UserID to remove:
+
+UserID User02 has been removed successfully!
+
+Do you want to delete the User Home Directory and contents as well? (Y/N):
+
+User Home Directory and contents are not deleted.
+
+Program Menu Options:
+---------------------
+1. Create a new user
+2. Remove a user
+3. Create 100 Users
+4. Create Users from File
+5. Exit
+
+Please select an option (1-5):
+---------------------------------
+Create 100 Users, User00-User99
+ERROR: UserID User00 already exists!
+ERROR: UserID User01 already exists!
+
+UserID User02 has been created successfully!
+ERROR: UserID User03 already exists!
+ERROR: UserID User04 already exists!
+ERROR: UserID User05 already exists!
+ERROR: UserID User06 already exists!
+ERROR: UserID User07 already exists!
+ERROR: UserID User08 already exists!
+ERROR: UserID User09 already exists!
+ERROR: UserID User10 already exists!
+ERROR: UserID User11 already exists!
+ERROR: UserID User12 already exists!
+ERROR: UserID User13 already exists!
+ERROR: UserID User14 already exists!
+ERROR: UserID User15 already exists!
+ERROR: UserID User16 already exists!
+ERROR: UserID User17 already exists!
+ERROR: UserID User18 already exists!
+ERROR: UserID User19 already exists!
+ERROR: UserID User20 already exists!
+ERROR: UserID User21 already exists!
+ERROR: UserID User22 already exists!
+ERROR: UserID User23 already exists!
+ERROR: UserID User24 already exists!
+ERROR: UserID User25 already exists!
+ERROR: UserID User26 already exists!
+ERROR: UserID User27 already exists!
+ERROR: UserID User28 already exists!
+ERROR: UserID User29 already exists!
+ERROR: UserID User30 already exists!
+ERROR: UserID User31 already exists!
+ERROR: UserID User32 already exists!
+ERROR: UserID User33 already exists!
+ERROR: UserID User34 already exists!
+ERROR: UserID User35 already exists!
+ERROR: UserID User36 already exists!
+ERROR: UserID User37 already exists!
+ERROR: UserID User38 already exists!
+ERROR: UserID User39 already exists!
+ERROR: UserID User40 already exists!
+ERROR: UserID User41 already exists!
+ERROR: UserID User42 already exists!
+ERROR: UserID User43 already exists!
+ERROR: UserID User44 already exists!
+ERROR: UserID User45 already exists!
+ERROR: UserID User46 already exists!
+ERROR: UserID User47 already exists!
+ERROR: UserID User48 already exists!
+ERROR: UserID User49 already exists!
+ERROR: UserID User50 already exists!
+ERROR: UserID User51 already exists!
+ERROR: UserID User52 already exists!
+ERROR: UserID User53 already exists!
+ERROR: UserID User54 already exists!
+ERROR: UserID User55 already exists!
+ERROR: UserID User56 already exists!
+ERROR: UserID User57 already exists!
+ERROR: UserID User58 already exists!
+ERROR: UserID User59 already exists!
+ERROR: UserID User60 already exists!
+ERROR: UserID User61 already exists!
+ERROR: UserID User62 already exists!
+ERROR: UserID User63 already exists!
+ERROR: UserID User64 already exists!
+ERROR: UserID User65 already exists!
+ERROR: UserID User66 already exists!
+ERROR: UserID User67 already exists!
+ERROR: UserID User68 already exists!
+ERROR: UserID User69 already exists!
+ERROR: UserID User70 already exists!
+ERROR: UserID User71 already exists!
+ERROR: UserID User72 already exists!
+ERROR: UserID User73 already exists!
+ERROR: UserID User74 already exists!
+ERROR: UserID User75 already exists!
+ERROR: UserID User76 already exists!
+ERROR: UserID User77 already exists!
+ERROR: UserID User78 already exists!
+ERROR: UserID User79 already exists!
+ERROR: UserID User80 already exists!
+ERROR: UserID User81 already exists!
+ERROR: UserID User82 already exists!
+ERROR: UserID User83 already exists!
+ERROR: UserID User84 already exists!
+ERROR: UserID User85 already exists!
+ERROR: UserID User86 already exists!
+ERROR: UserID User87 already exists!
+ERROR: UserID User88 already exists!
+ERROR: UserID User89 already exists!
+ERROR: UserID User90 already exists!
+ERROR: UserID User91 already exists!
+ERROR: UserID User92 already exists!
+ERROR: UserID User93 already exists!
+ERROR: UserID User94 already exists!
+ERROR: UserID User95 already exists!
+ERROR: UserID User96 already exists!
+ERROR: UserID User97 already exists!
+ERROR: UserID User98 already exists!
+ERROR: UserID User99 already exists!
+
+Program Menu Options:
+---------------------
+1. Create a new user
+2. Remove a user
+3. Create 100 Users
+4. Create Users from File
+5. Exit
+
+Please select an option (1-5):
+------------------------
+Create Users from CSV file
+Please enter the full path of CSV file to import:
+PS>TerminatingError(Import-Csv): "Could not find file 'C:\abc.txt'."
+
+ERROR: Invalid file path/format!
+
+Program Menu Options:
+---------------------
+1. Create a new user
+2. Remove a user
+3. Create 100 Users
+4. Create Users from File
+5. Exit
+
+Please select an option (1-5):
+------------------------
+Create Users from CSV file
+Please enter the full path of CSV file to import:
+Group Kerbals doesn't exist, creating new group...
+Group Science doesn't exist, creating new group...
+UserID bobkerman has been created, added into group Kerbals and Science successfully!
+Group Enginnering doesn't exist, creating new group...
+UserID billkermain has been created, added into group Kerbals and Enginnering successfully!
+Group Pilots doesn't exist, creating new group...
+UserID valkerman has been created, added into group Kerbals and Pilots successfully!
+UserID jebkerman has been created, added into group Kerbals and Pilots successfully!
+
+Program Menu Options:
+---------------------
+1. Create a new user
+2. Remove a user
+3. Create 100 Users
+4. Create Users from File
+5. Exit
+
+Please select an option (1-5):
+-----------------------------------------
+Remove a user, existng UserIDs as follow
+
+Name
+----
+Administrator
+billkermain
+bobkerman
+DefaultAccount
+Guest
+jebkerman
+so000022
+User00
+User01
+User02
+User03
+User04
+User05
+User06
+User07
+User08
+User09
+User10
+User11
+User12
+User13
+User14
+User15
+User16
+User17
+User18
+User19
+User1a
+User1b
+User1c
+User1d
+User20
+User21
+User22
+User23
+User24
+User25
+User26
+User27
+User28
+User29
+User2a
+User2c
+User2d
+User30
+User31
+User32
+User33
+User34
+User35
+User36
+User37
+User38
+User39
+User40
+User41
+User42
+User43
+User44
+User45
+User46
+User47
+User48
+User49
+User50
+User51
+User52
+User53
+User54
+User55
+User56
+User57
+User58
+User59
+User60
+User61
+User62
+User63
+User64
+User65
+User66
+User67
+User68
+User69
+User70
+User71
+User72
+User73
+User74
+User75
+User76
+User77
+User78
+User79
+User80
+User81
+User82
+User83
+User84
+User85
+User86
+User87
+User88
+User89
+User90
+User91
+User92
+User93
+User94
+User95
+User96
+User97
+User98
+User99
+valkerman
+WDAGUtilityAccount
+
+
+Please select and enter the UserID to remove:
+
+ERROR: UserID  doesn't exists!
+
+Program Menu Options:
+---------------------
+1. Create a new user
+2. Remove a user
+3. Create 100 Users
+4. Create Users from File
+5. Exit
+
+Please select an option (1-5):
+------------------------
+Create Users from CSV file
+Please enter the full path of CSV file to import:
+PS>TerminatingError(New-LocalUser): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: User bobkerman already exists."
+UserID bobkerman already exists...
+PS>TerminatingError(New-LocalUser): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: User billkermain already exists."
+UserID billkermain already exists...
+PS>TerminatingError(New-LocalUser): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: User valkerman already exists."
+UserID valkerman already exists...
+PS>TerminatingError(New-LocalUser): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: User jebkerman already exists."
+UserID jebkerman already exists...
+
+Program Menu Options:
+---------------------
+1. Create a new user
+2. Remove a user
+3. Create 100 Users
+4. Create Users from File
+5. Exit
+
+Please select an option (1-5):
+Exiting Program....
+**********************
+Windows PowerShell transcript end
+End time: 20211204203635
+**********************
