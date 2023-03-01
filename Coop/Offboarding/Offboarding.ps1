@@ -3,8 +3,8 @@
 # Email: cso@investottawa.ca
 
 $exitprogram = 0
- 
-$ErrorActionPreference= 'SilentlyContinue'      
+
+$ErrorActionPreference= 'SilentlyContinue'
 
 function Retrieve_UserInfo {
 
@@ -15,12 +15,50 @@ function Retrieve_UserInfo {
     $jobTitle = $user.Title
     $managerName = (Get-ADUser $user.Manager).Name
 
+    Write-Host `n
     Write-Host "User details for username `"$username`""
     Write-Host --------------------------------------
     Write-Host "Name: $Name"
     Write-Host "Email address: $email"
     Write-Host "Job Title: $jobTitle"
     Write-Host "Manager Name: $managerName"
+
+        # Get the licenses assigned to the user
+    $O365user =  Get-MsolUser -UserPrincipalName $email
+    IF ($O365user){
+        IF (!($O365user.Licenses)){
+            $LicensedUser = $null
+            Write-Output ""
+            Write-Output "Licenses is null for $($O365user.UserPrincipalName)"
+            Write-Output "IsLicensed is $($O365user.IsLicensed)"
+            Write-Output ""
+            }
+            Else
+            {
+            $LicensedUser = $O365user
+            }
+          }
+          Else
+          {
+          Write-Error "Get-MsolUser : User Not Found" 
+          }
+      
+    
+    #get skus and services for user
+    IF($LicensedUser){
+    Foreach ($Userdetails in $LicensedUser){
+        $skus = $Userdetails.Licenses.AccountSkuId
+        $dname = $Userdetails.DisplayName
+        $skucount = $skus.count
+        $skusname = $skus -replace "reseller-account:",""
+
+        Write-Output ""
+        Write-Output "$dname has $skucount total licenses assignments: "
+        Write-Output -------------------------------------------------
+        Write-Output $skusname
+            
+        }
+    }
 }
 
 <#
@@ -70,7 +108,6 @@ while($exitprogram -eq 0 )                                                      
     Write-Host -------------------------------------
 
 Write-Host "Please enter the username OR enter q to quit: " -NoNewline
-Write-Host `n
 
 $username = Read-Host
 
