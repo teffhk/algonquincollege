@@ -4,16 +4,19 @@
 
 $exitprogram = 0
 
+Connect-MsolService 
+
 $ErrorActionPreference= 'SilentlyContinue'
 
 function Retrieve_UserInfo {
 
-    $user = Get-ADUser -Identity $username -Properties Name, EmailAddress, Title, Manager
+    $user = Get-ADUser -Identity $username -Properties Name, EmailAddress, Title, Manager, extensionAttribute1
     
     $Name = $user.Name
     $email = $user.EmailAddress
     $jobTitle = $user.Title
     $managerName = (Get-ADUser $user.Manager).Name
+    $extensionAttribute = $user.extensionAttribute1
 
     Write-Host `n
     Write-Host "User details for username `"$username`""
@@ -22,6 +25,7 @@ function Retrieve_UserInfo {
     Write-Host "Email address: $email"
     Write-Host "Job Title: $jobTitle"
     Write-Host "Manager Name: $managerName"
+    Write-Host "Extension Attribute: $extensionAttribute"
 
         # Get the licenses assigned to the user
     $O365user =  Get-MsolUser -UserPrincipalName $email
@@ -117,7 +121,12 @@ If ($username -eq "q" -or $username -eq "Q" ) {
 } 
 
 else {
-    Retrieve_UserInfo
+    If ($null -ne $(Get-ADUser -Identity $username))
+    {Retrieve_UserInfo}
+
+    else
+     {  Write-Host `n
+        Write-Host "ERROR: UserID $username doesn't exists!"}
 }
 
 }
