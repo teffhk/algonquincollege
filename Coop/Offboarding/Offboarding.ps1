@@ -125,6 +125,6 @@ else {
         Write-Host `n
         Write-Host "ERROR: Username $username doesn't exists!"
     }  
-
     }
+}
 }
