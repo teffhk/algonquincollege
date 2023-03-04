@@ -97,8 +97,8 @@ If ($username.ToUpper() -eq "Q" ) {
 } 
 
 else {
-    If ($null -ne $(Get-ADUser -Identity $username))
-    
+    If ($null -ne $(Get-ADUser -Identity $username)) {
+
     {Retrieve_UserInfo}
 
     $confirm = ""
@@ -121,10 +121,10 @@ else {
             Write-Host "$username user account is not disabled."
         } 
 
-    else
-     {  Write-Host `n
+    else {
+        Write-Host `n
         Write-Host "ERROR: Username $username doesn't exists!"
-    }
+    }  
 
     }
 }
