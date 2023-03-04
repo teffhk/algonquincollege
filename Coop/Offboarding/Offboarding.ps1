@@ -66,19 +66,20 @@ function Retrieve_UserInfo {
 }
 function Disable_User {
 
-    $newPassword = Can*1234
+    $user = Get-ADUser -Identity $username
+    $newPassword = ConvertTo-SecureString "Can*1234" -AsPlainText -Force
 
     # Specify the target OU to move the user account to
     $ouPath = "OU=Disabled Accounts,OU=Users,OU=OCRI,DC=RESEARCH,DC=PRV"
 
     # Disable the user account
-    Disable-ADAccount -Identity $username
+    Disable-ADAccount -Identity $user
 
     # Reset the user account password
-    Set-ADAccountPassword -Identity $username -NewPassword $newPassword -Reset
+    Set-ADAccountPassword -Identity $user -NewPassword $newPassword -Reset
 
     # Move the user account to the target OU
-    Move-ADObject -Identity $username -TargetPath $ouPath
+    Move-ADObject -Identity $user -TargetPath $ouPath
 }
 
 #While loop block for the main menu
@@ -91,7 +92,7 @@ Write-Host "Please enter the username OR enter q to quit: " -NoNewline
 
 $username = Read-Host
 
-If ($username.ToUpper() -eq "Q" ) {
+If ($username -eq "Q" -or $username -eq "q" ) {
     Write-Host "Exiting Program.... " 
     $exitprogram = 1
 } 
@@ -99,8 +100,9 @@ If ($username.ToUpper() -eq "Q" ) {
 else {
     If ($null -ne $(Get-ADUser -Identity $username)) {
 
-    {Retrieve_UserInfo}
+    Retrieve_UserInfo
 
+    Write-Host `n
     $confirm = ""
     $confirm = Read-Host "*** PLEASE CONFIRM TO DISABLE the USERNAME $username (Y/N) ***"
         
