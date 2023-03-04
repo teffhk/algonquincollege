@@ -120,11 +120,10 @@ else {
         else {
             Write-Host "$username user account is not disabled."
         } 
-
+    }
     else {
         Write-Host `n
         Write-Host "ERROR: Username $username doesn't exists!"
-    }  
-    }
+    }      
 }
 }
