@@ -27,7 +27,7 @@ function Retrieve_UserInfo {
     Write-Host "Manager Name: $managerName"
     Write-Host "Extension Attribute: $extensionAttribute"
 
-        # Get the licenses assigned to the user
+    # Get the licenses assigned to the user
     $O365user =  Get-MsolUser -UserPrincipalName $email
     IF ($O365user){
         IF (!($O365user.Licenses)){
@@ -64,49 +64,25 @@ function Retrieve_UserInfo {
         }
     }
 }
+function Disable_User {
 
-<#
-function Remove_User {                                                                         #Function block for option 2 removing an user
+    $newPassword = Can*1234
 
-    Write-Host ----------------------------------------
-    Write-Host Remove a user, existng UserIDs as follow
-    Get-LocalUser | select name | Format-table
-    Write-Host "Please select and enter the UserID to remove: " -NoNewline
-    
-    $delete_user = Read-Host
-    
-    If ($null -ne $(get-localuser -Name $delete_user))
-    
-        {   Remove-localuser -Name $delete_user
-            Write-Host `n
-            Write-Host "UserID $delete_user has been removed successfully!"
-            Write-Host `n        
-            Write-Host "Do you want to delete the User Home Directory and contents as well? (Y/N):" -NoNewline
-            $remove_home = Read-Host
-    
-            If ($remove_home -eq "Y")
-                {try
-                    { $RemoveHomeFolder = "C:\users\" + $delete_user
-                      Remove-Item -Path $RemoveHomeFolder -Recurse -Force -ErrorAction stop
-                      Write-Host `n
-                      Write-Host "User Home Directory and contents have been deleted successfully!"}
-                 catch
-                    { Write-Host `n
-                      Write-Host "Error removing directory $RemoveHomeFolder! Please check manually."}
-                 }
-            else
-                { Write-Host `n
-                  Write-Host "User Home Directory and contents are not deleted."}       
-          } 
-    
-       else
-         {  Write-Host `n
-            Write-Host "ERROR: UserID $delete_user doesn't exists!"}
-    }
-#>
+    # Specify the target OU to move the user account to
+    $ouPath = "OU=Disabled Accounts,OU=Users,OU=OCRI,DC=RESEARCH,DC=PRV"
 
-while($exitprogram -eq 0 )                                                                   #While loop block for the main menu
-{
+    # Disable the user account
+    Disable-ADAccount -Identity $username
+
+    # Reset the user account password
+    Set-ADAccountPassword -Identity $username -NewPassword $newPassword -Reset
+
+    # Move the user account to the target OU
+    Move-ADObject -Identity $username -TargetPath $ouPath
+}
+
+#While loop block for the main menu
+while($exitprogram -eq 0 ) {
     Write-Host `n
     Write-Host User Offboarding Script:
     Write-Host -------------------------------------
@@ -115,18 +91,40 @@ Write-Host "Please enter the username OR enter q to quit: " -NoNewline
 
 $username = Read-Host
 
-If ($username -eq "q" -or $username -eq "Q" ) {
+If ($username.ToUpper() -eq "Q" ) {
     Write-Host "Exiting Program.... " 
     $exitprogram = 1
 } 
 
 else {
     If ($null -ne $(Get-ADUser -Identity $username))
+    
     {Retrieve_UserInfo}
+
+    $confirm = ""
+    $confirm = Read-Host "*** PLEASE CONFIRM TO DISABLE the USERNAME $username (Y/N) ***"
+        
+        If ($confirm.ToUpper() -eq "Y") {
+            
+            Write-Host "Disabling $username user account..."
+
+            try
+            {Disable_User}
+
+            catch
+            {
+                Write-Warning "An Error has occurred when disabling the account: $($_.Exception.Message)"
+                Start-Sleep -Seconds 10
+            }
+        }
+        else {
+            Write-Host "$username user account is not disabled."
+        } 
 
     else
      {  Write-Host `n
-        Write-Host "ERROR: UserID $username doesn't exists!"}
-}
+        Write-Host "ERROR: Username $username doesn't exists!"
+    }
 
+    }
 }
