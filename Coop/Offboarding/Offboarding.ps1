@@ -18,6 +18,13 @@ function Retrieve_UserInfo {
     $managerName = (Get-ADUser $user.Manager).Name
     $extensionAttribute = $user.extensionAttribute1
 
+    if ($user.Enabled -eq $false) {
+        $status = "Disabled"
+    }
+    else{
+        $status = "Enabled"
+    }
+
     Write-Host `n
     Write-Host "User details for username `"$username`""
     Write-Host --------------------------------------
@@ -26,6 +33,7 @@ function Retrieve_UserInfo {
     Write-Host "Job Title: $jobTitle"
     Write-Host "Manager Name: $managerName"
     Write-Host "Extension Attribute: $extensionAttribute"
+    Write-Host "Account status: $status"
 
     # Get the licenses assigned to the user
     $O365user =  Get-MsolUser -UserPrincipalName $email
@@ -66,20 +74,41 @@ function Retrieve_UserInfo {
 }
 function Disable_User {
 
-    $user = Get-ADUser -Identity $username
+    $user = Get-ADUser -Identity $username -Properties MemberOf
     $newPassword = ConvertTo-SecureString "Can*1234" -AsPlainText -Force
 
     # Specify the target OU to move the user account to
     $ouPath = "OU=Disabled Accounts,OU=Users,OU=OCRI,DC=RESEARCH,DC=PRV"
 
-    # Disable the user account
-    Disable-ADAccount -Identity $user
+    if ($user.Enabled -eq $false) {
 
-    # Reset the user account password
-    Set-ADAccountPassword -Identity $user -NewPassword $newPassword -Reset
+        Write-Host `n
+        Write-Host "$username user account is already disabled!"
+    }
+    else {      
 
-    # Move the user account to the target OU
-    Move-ADObject -Identity $user -TargetPath $ouPath
+        # Disable the user account
+        Disable-ADAccount -Identity $user
+
+        # Reset the user account password
+        Set-ADAccountPassword -Identity $user -NewPassword $newPassword -Reset
+
+        # Remove the job title, manager, extensionAttribute1 attribute
+        Set-ADUser -Identity $username -Clear title, manager, extensionAttribute1
+
+        # Remove user from all groups except "All Users"
+        foreach ($group in $user.MemberOf) {
+        if ($group -ne "All Users" -or $group -ne "365 Users") {
+            Remove-ADGroupMember -Identity $group -Members $user -Confirm:$false
+        }
+        }
+
+        # Confirm completion
+        Write-Host "All groups except 'All Users' have been removed from user $username."
+
+        # Move the user account to the target OU
+        Move-ADObject -Identity $user -TargetPath $ouPath
+    }
 }
 
 #While loop block for the main menu
