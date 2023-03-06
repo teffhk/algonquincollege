@@ -8,10 +8,13 @@ Connect-MsolService
 
 $ErrorActionPreference= 'SilentlyContinue'
 
+# Function to retrieve the user account information from LocalAD and AzureAD
 function Retrieve_UserInfo {
 
+    # Retrieve the user object from Local AD
     $user = Get-ADUser -Identity $username -Properties Name, EmailAddress, Title, Manager, extensionAttribute1
     
+    # Assign the user account properties to the varibles
     $Name = $user.Name
     $email = $user.EmailAddress
     $jobTitle = $user.Title
@@ -25,6 +28,7 @@ function Retrieve_UserInfo {
         $status = "Enabled"
     }
 
+    # Output the user properties from the variables
     Write-Host `n
     Write-Host "User details for username `"$username`""
     Write-Host --------------------------------------
@@ -72,14 +76,18 @@ function Retrieve_UserInfo {
         }
     }
 }
+
+# Function to disable the user account
 function Disable_User {
 
+    # Get the user object and set the reset password
     $user = Get-ADUser -Identity $username -Properties MemberOf
     $newPassword = ConvertTo-SecureString "Can*1234" -AsPlainText -Force
 
     # Specify the target OU to move the user account to
     $ouPath = "OU=Disabled Accounts,OU=Users,OU=OCRI,DC=RESEARCH,DC=PRV"
 
+    # Check if the user account is already disabled
     if ($user.Enabled -eq $false) {
 
         Write-Host `n
@@ -98,20 +106,20 @@ function Disable_User {
 
         # Remove user from all groups except "All Users"
         foreach ($group in $user.MemberOf) {
-        if ($group -ne "All Users" -or $group -ne "365 Users") {
+        if ($group -ne "Domain Users" -or $group -ne "O365-USERS") {
             Remove-ADGroupMember -Identity $group -Members $user -Confirm:$false
         }
         }
 
         # Confirm completion
-        Write-Host "All groups except 'All Users' have been removed from user $username."
+        Write-Host "All groups except 'Domain Users' and 'O365-USERS' have been removed from user $username."
 
         # Move the user account to the target OU
         Move-ADObject -Identity $user -TargetPath $ouPath
     }
 }
 
-#While loop block for the main menu
+#While loop block for main query to ask for the username of the account
 while($exitprogram -eq 0 ) {
     Write-Host `n
     Write-Host User Offboarding Script:
@@ -119,6 +127,7 @@ while($exitprogram -eq 0 ) {
 
 Write-Host "Please enter the username OR enter q to quit: " -NoNewline
 
+# Read the username input
 $username = Read-Host
 
 If ($username -eq "Q" -or $username -eq "q" ) {
@@ -129,8 +138,10 @@ If ($username -eq "Q" -or $username -eq "q" ) {
 else {
     If ($null -ne $(Get-ADUser -Identity $username)) {
 
+    # Call fucntion Retrieve_UserInfo to retrieve user account inofrmation
     Retrieve_UserInfo
 
+    # Ask for confirmation for disabling user account
     Write-Host `n
     $confirm = ""
     $confirm = Read-Host "*** PLEASE CONFIRM TO DISABLE the USERNAME $username (Y/N) ***"
@@ -139,9 +150,11 @@ else {
             
             Write-Host "Disabling $username user account..."
 
+            # Call fucntion Disable_User to disable the user account
             try
             {Disable_User}
 
+            # Catch if there is error or exception while disabling the account
             catch
             {
                 Write-Warning "An Error has occurred when disabling the account: $($_.Exception.Message)"
