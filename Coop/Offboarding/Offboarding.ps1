@@ -2,8 +2,10 @@
 # Created by: Cody So
 # Email: cso@investottawa.ca
 
+# Set exit program state varible
 $exitprogram = 0
 
+# Connect to Exchangeonline, deprecate soon
 Connect-MsolService 
 
 $ErrorActionPreference= 'SilentlyContinue'
@@ -39,7 +41,7 @@ function Retrieve_UserInfo {
     Write-Host "Extension Attribute: $extensionAttribute"
     Write-Host "Account status: $status"
 
-    # Get the licenses assigned to the user
+    # Get the licenses assigned to the user from ExchangeOline
     $O365user =  Get-MsolUser -UserPrincipalName $email
     IF ($O365user){
         IF (!($O365user.Licenses)){
@@ -59,7 +61,6 @@ function Retrieve_UserInfo {
           Write-Error "Get-MsolUser : User Not Found" 
           }
       
-    
     #get skus and services for user
     IF($LicensedUser){
     Foreach ($Userdetails in $LicensedUser){
@@ -87,7 +88,7 @@ function Disable_User {
     # Specify the target OU to move the user account to
     $ouPath = "OU=Disabled Accounts,OU=Users,OU=OCRI,DC=RESEARCH,DC=PRV"
 
-    # Check if the user account is already disabled
+    # Check if the user account is already disabled 
     if ($user.Enabled -eq $false) {
 
         Write-Host `n
@@ -97,12 +98,21 @@ function Disable_User {
 
         # Disable the user account
         Disable-ADAccount -Identity $user
+        
+        # Confirm completion
+        Write-Host "$username user account has been disabled."
 
         # Reset the user account password
         Set-ADAccountPassword -Identity $user -NewPassword $newPassword -Reset
 
+        # Confirm completion
+        Write-Host "$username user account password has been reset."
+
         # Remove the job title, manager, extensionAttribute1 attribute
         Set-ADUser -Identity $username -Clear title, manager, extensionAttribute1
+
+        # Confirm completion
+        Write-Host "$username user account title, manager and extension attribute has been cleared."
 
         # Remove user from all groups except "All Users"
         foreach ($group in $user.MemberOf) {
@@ -116,10 +126,16 @@ function Disable_User {
 
         # Move the user account to the target OU
         Move-ADObject -Identity $user -TargetPath $ouPath
+
+         # Confirm completion
+         Write-Host "$username user account have been moved to 'Disabled Accounts' OU."
+
     }
 }
 
-#While loop block for main query to ask for the username of the account
+#Main script block, keep running until user quits
+
+#While loop block for main query to ask for the username
 while($exitprogram -eq 0 ) {
     Write-Host `n
     Write-Host User Offboarding Script:
@@ -138,7 +154,7 @@ If ($username -eq "Q" -or $username -eq "q" ) {
 else {
     If ($null -ne $(Get-ADUser -Identity $username)) {
 
-    # Call fucntion Retrieve_UserInfo to retrieve user account inofrmation
+    # Call fucntion 'Retrieve_UserInfo' to retrieve user account inofrmation
     Retrieve_UserInfo
 
     # Ask for confirmation for disabling user account
@@ -150,7 +166,7 @@ else {
             
             Write-Host "Disabling $username user account..."
 
-            # Call fucntion Disable_User to disable the user account
+            # Call fucntion 'Disable_User' to disable the user account
             try
             {Disable_User}
 
@@ -165,6 +181,8 @@ else {
             Write-Host "$username user account is not disabled."
         } 
     }
+
+    # Check if the username doesnt exist
     else {
         Write-Host `n
         Write-Host "ERROR: Username $username doesn't exists!"
