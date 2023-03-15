@@ -5,8 +5,8 @@
 # Set exit program state varible
 $exitprogram = 0
 
-# Connect to Exchangeonline, deprecate soon
-Connect-MsolService 
+# Connect to Microsoft Graph Powershell
+Connect-Graph -Scopes User.ReadWrite.All, Organization.Read.All
 
 $ErrorActionPreference= 'SilentlyContinue'
 
@@ -41,13 +41,13 @@ function Retrieve_UserInfo {
     Write-Host "Extension Attribute: $extensionAttribute"
     Write-Host "Account status: $status"
 
-    # Get the licenses assigned to the user from ExchangeOline
-    $O365user =  Get-MsolUser -UserPrincipalName $email
+    # Get the licenses assigned to the user from MG Powershell
+    $O365user =  Get-MgUserLicenseDetail -UserId $email
     IF ($O365user){
-        IF (!($O365user.Licenses)){
+        IF (!($O365user.SkuPartNumber)){
             $LicensedUser = $null
             Write-Output ""
-            Write-Output "Licenses is null for $($O365user.UserPrincipalName)"
+            Write-Output "Licenses is null for $Name"
             Write-Output "IsLicensed is $($O365user.IsLicensed)"
             Write-Output ""
             }
@@ -58,31 +58,27 @@ function Retrieve_UserInfo {
           }
           Else
           {
-          Write-Error "Get-MsolUser : User Not Found" 
+          Write-Error "Get-MgUserLicenseDetail : User Not Found" 
           }
       
-    #get skus and services for user
-    IF($LicensedUser){
-    Foreach ($Userdetails in $LicensedUser){
-        $skus = $Userdetails.Licenses.AccountSkuId
-        $dname = $Userdetails.DisplayName
+        #get skus and license names
+        $skus = $LicensedUser.SkuPartNumber
         $skucount = $skus.count
-        $skusname = $skus -replace "reseller-account:",""
 
         Write-Output ""
-        Write-Output "$dname has $skucount total licenses assignments: "
+        Write-Output "$Name has $skucount total licenses assignments: "
         Write-Output -------------------------------------------------
-        Write-Output $skusname
+        Write-Output $skus
             
-        }
-    }
+    
 }
 
 # Function to disable the user account
 function Disable_User {
 
     # Get the user object and set the reset password
-    $user = Get-ADUser -Identity $username -Properties MemberOf
+    $user = Get-ADUser -Identity $username -Properties MemberOf, EmailAddress
+    $email = $user.EmailAddress
     $newPassword = ConvertTo-SecureString "Can*1234" -AsPlainText -Force
 
     # Specify the target OU to move the user account to
@@ -96,11 +92,11 @@ function Disable_User {
     }
     else {      
 
-        # Disable the user account
+        # Disable the user account in the local AD
         Disable-ADAccount -Identity $user
         
         # Confirm completion
-        Write-Host "$username user account has been disabled."
+        Write-Host "$username local AD user account has been disabled."
 
         # Reset the user account password
         Set-ADAccountPassword -Identity $user -NewPassword $newPassword -Reset
@@ -127,11 +123,26 @@ function Disable_User {
         # Move the user account to the target OU
         Move-ADObject -Identity $user -TargetPath $ouPath
 
-         # Confirm completion
-         Write-Host "$username user account have been moved to 'Disabled Accounts' OU."
+        # Confirm completion
+        Write-Host "$username user account have been moved to 'Disabled Accounts' OU."
+        
+        Write-Host `n
+        Write-Host "Now connecting to Microsoft 365 to disable the user account..."
+
+        # Disable the user account in the Microsoft 365
+        Update-MgUser -UserId $email -AccountEnabled $false
+
+        # Confirm completion
+        Write-Host "$username O365 user account has been disabled."
+
+        # Convert user mailbox to shared mailbox
+        # Update-MgUser -UserId $email -AccountEnabled $false
 
     }
 }
+
+
+
 
 #Main script block, keep running until user quits
 
@@ -188,4 +199,7 @@ else {
         Write-Host "ERROR: Username $username doesn't exists!"
     }      
 }
+
+
 }
+
