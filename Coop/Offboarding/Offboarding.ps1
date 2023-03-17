@@ -8,7 +8,7 @@ Write-Host ""
 
 Try
 {
-Connect-Graph -Scopes User.ReadWrite.All, Organization.Read.All -ErrorAction Stop
+Connect-Graph -Scopes User.ReadWrite.All, Group.ReadWrite.All, Organization.Read.All -ErrorAction Stop
 }
 Catch [Exception]
 {
