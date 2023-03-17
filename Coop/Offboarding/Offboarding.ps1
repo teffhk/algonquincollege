@@ -2,13 +2,50 @@
 # Created by: Cody So
 # Email: cso@investottawa.ca
 
+# Connect to Microsoft Graph Powershell
+Write-Host "Connecting to Microsoft Graph..."
+Write-Host ""
+
+Try
+{
+Connect-Graph -Scopes User.ReadWrite.All, Organization.Read.All -ErrorAction Stop
+}
+Catch [Exception]
+{
+Write-Warning "!!!!!!! Exception !!!!!!!" 
+Write-Output ""
+Write-Output $_ 
+Write-Output ""
+Write-Warning "The username or password is incorrect. Please verify and try again."
+Write-Output ""
+Exit
+}
+
+# Connect to Exchange Online Powershell
+Write-Host ""
+Write-Host "Connecting to Exchange Online..."
+Write-Host ""
+
+Try
+{
+Import-Module ExchangeOnlineManagement
+Connect-ExchangeOnline -ShowBanner:$false
+}
+Catch [Exception]
+{
+Write-Warning "!!!!!!! Exception !!!!!!!" 
+Write-Output ""
+Write-Output $_ 
+Write-Output ""
+Write-Warning "The username or password is incorrect. Please verify and try again."
+Write-Output ""
+Exit
+}
+Write-Host "Connect to Exchange Online successfully!"
+
 # Set exit program state varible
 $exitprogram = 0
-
-# Connect to Microsoft Graph Powershell
-Connect-Graph -Scopes User.ReadWrite.All, Organization.Read.All
-
-$ErrorActionPreference= 'SilentlyContinue'
+$ErrorActionPreference = "SilentlyContinue"
 
 # Function to retrieve the user account information from LocalAD and AzureAD
 function Retrieve_UserInfo {
@@ -41,73 +78,69 @@ function Retrieve_UserInfo {
     Write-Host "Extension Attribute: $extensionAttribute"
     Write-Host "Account status: $status"
 
-    # Get the licenses assigned to the user from MG Powershell
-    $O365user =  Get-MgUserLicenseDetail -UserId $email
-    IF ($O365user){
-        IF (!($O365user.SkuPartNumber)){
-            $LicensedUser = $null
-            Write-Output ""
-            Write-Output "Licenses is null for $Name"
-            Write-Output "IsLicensed is $($O365user.IsLicensed)"
-            Write-Output ""
-            }
-            Else
-            {
-            $LicensedUser = $O365user
-            }
-          }
-          Else
-          {
-          Write-Error "Get-MgUserLicenseDetail : User Not Found" 
-          }
-      
-        #get skus and license names
-        $skus = $LicensedUser.SkuPartNumber
-        $skucount = $skus.count
+    # Check if the user account exists in the Microsoft 365
+    if ($null -ne $(Get-MgUser -UserId $email -ErrorAction SilentlyContinue)){  
 
-        Write-Output ""
-        Write-Output "$Name has $skucount total licenses assignments: "
-        Write-Output -------------------------------------------------
-        Write-Output $skus
-            
-    
+    # Get the licenses assigned to the user from MG Powershell
+    $LicensedUser  =  Get-MgUserLicenseDetail -UserId $email
+        
+            #get skus and license names
+            $skus = $LicensedUser.SkuPartNumber
+            $skucount = $skus.count
+
+            Write-Output ""
+            Write-Output "$Name has $skucount total licenses assignments: "
+            Write-Output -------------------------------------------------
+            Write-Output $skus
+        
+    }
+    else {
+        Write-Host `n
+        Write-Host "ERROR: $username user account doesn't exists on Office 365!"
+    }  
 }
 
 # Function to disable the user account
 function Disable_User {
 
     # Get the user object and set the reset password
-    $user = Get-ADUser -Identity $username -Properties MemberOf, EmailAddress
-    $email = $user.EmailAddress
-    $newPassword = ConvertTo-SecureString "Can*1234" -AsPlainText -Force
-
-    # Specify the target OU to move the user account to
-    $ouPath = "OU=Disabled Accounts,OU=Users,OU=OCRI,DC=RESEARCH,DC=PRV"
+    $user = Get-ADUser -Identity $username -Properties MemberOf, EmailAddress, Manager
 
     # Check if the user account is already disabled 
     if ($user.Enabled -eq $false) {
-
-        Write-Host `n
-        Write-Host "$username user account is already disabled!"
+        
+        Write-Host ""
+        Write-Host "ERROR: $username user account is already disabled!"
     }
+
     else {      
+        # Specify the target OU to move the user account to
+        $ouPath = "OU=Disabled Accounts,OU=Users,OU=OCRI,DC=RESEARCH,DC=PRV"
+
+        $email = $user.EmailAddress
+        $managerName = (Get-ADUser $user.Manager).Name
+        $managerEmail = (Get-ADUser $user.Manager -Properties EmailAddress).EmailAddress
+        $newPassword = ConvertTo-SecureString "Can*1234" -AsPlainText -Force
 
         # Disable the user account in the local AD
         Disable-ADAccount -Identity $user
         
         # Confirm completion
+        Write-Host ""
         Write-Host "$username local AD user account has been disabled."
 
         # Reset the user account password
         Set-ADAccountPassword -Identity $user -NewPassword $newPassword -Reset
 
         # Confirm completion
+        Write-Host ""
         Write-Host "$username user account password has been reset."
 
         # Remove the job title, manager, extensionAttribute1 attribute
         Set-ADUser -Identity $username -Clear title, manager, extensionAttribute1
 
         # Confirm completion
+        Write-Host ""
         Write-Host "$username user account title, manager and extension attribute has been cleared."
 
         # Remove user from all groups except "All Users"
@@ -118,31 +151,69 @@ function Disable_User {
         }
 
         # Confirm completion
-        Write-Host "All groups except 'Domain Users' and 'O365-USERS' have been removed from user $username."
+        Write-Host ""
+        Write-Host "All Local AD groups except 'Domain Users' and 'O365-USERS' have been removed from user $username."
+
+        # Set AD attribute to hide the user’s account from Global Address List
+        Get-ADuser -Identity $user -property msExchHideFromAddressLists | Set-ADObject -Replace @{msExchHideFromAddressLists=$true}
+
+        # Confirm completion
+        Write-Host ""
+        Write-Host "$username user account has been hidden from the Global Address List."
 
         # Move the user account to the target OU
         Move-ADObject -Identity $user -TargetPath $ouPath
 
         # Confirm completion
+        Write-Host ""
         Write-Host "$username user account have been moved to 'Disabled Accounts' OU."
         
         Write-Host `n
+        Write-Host ----------------------------------------------------------------
         Write-Host "Now connecting to Microsoft 365 to disable the user account..."
 
+        # Check if the user account exists in the Microsoft 365
+        If ($null -ne $(Get-MgUser -UserId $email -ErrorAction SilentlyContinue)) {
         # Disable the user account in the Microsoft 365
         Update-MgUser -UserId $email -AccountEnabled $false
 
         # Confirm completion
-        Write-Host "$username O365 user account has been disabled."
+        Write-Host ""
+        Write-Host "$username Microsoft 365 user account has been disabled."
 
         # Convert user mailbox to shared mailbox
-        # Update-MgUser -UserId $email -AccountEnabled $false
+        Set-Mailbox -Identity $email -Type Shared
 
+        # Confirm completion
+        Write-Host ""
+        Write-Host "$email mailbox has been coverted to shared mailbox."
+
+        # Delegate mailbox access to the user’s manager 
+        Add-MailboxPermission -identity $email -User $managerEmail -AccessRights FullAccess
+
+        # Confirm completion
+        Write-Host ""
+        Write-Host "$email mailbox access has been delegrated to $managerName."
+
+        # Setting Automatic replies for the user mailbox
+        $internalmessage = "Thank you for your e-mail. Please note that I am no longer working with Invest Ottawa. For ongoing support and/or any questions, please contact $managerName at $managerEmail. `nThank you for reaching out to Invest Ottawa."
+        $externalmessage = "Thank you for your e-mail. Please note that I am no longer working with Invest Ottawa. For ongoing support and/or any questions, please contact $managerName at $managerEmail. `nThank you for reaching out to Invest Ottawa."
+
+        Set-MailboxAutoReplyConfiguration -Identity $email -AutoReplyState Enabled -InternalMessage $internalmessage -ExternalMessage $externalmessage -ExternalAudience All
+
+        # Confirm completion
+        Write-Host ""
+        Write-Host "Automatic replies has been set for $email mailbox." 
+
+
+        }
+        else {
+            Write-Host ""
+            Write-Host "ERROR: $username user account doesn't exists on Microsoft 365!"
+        }  
+    
     }
 }
-
-
-
 
 #Main script block, keep running until user quits
 
@@ -158,6 +229,7 @@ Write-Host "Please enter the username OR enter q to quit: " -NoNewline
 $username = Read-Host
 
 If ($username -eq "Q" -or $username -eq "q" ) {
+    Write-Host ""
     Write-Host "Exiting Program.... " 
     $exitprogram = 1
 } 
@@ -171,9 +243,9 @@ else {
     # Ask for confirmation for disabling user account
     Write-Host `n
     $confirm = ""
-    $confirm = Read-Host "*** PLEASE CONFIRM TO DISABLE the USERNAME $username (Y/N) ***"
+    $confirm = Read-Host "*** PLEASE CONFIRM TO DISABLE THE USERNAME $username. Type 'YES' to confirm. ***"
         
-        If ($confirm.ToUpper() -eq "Y") {
+        If ($confirm.ToUpper() -eq "YES") {
             
             Write-Host "Disabling $username user account..."
 
@@ -189,6 +261,7 @@ else {
             }
         }
         else {
+            Write-Host ""
             Write-Host "$username user account is not disabled."
         } 
     }
