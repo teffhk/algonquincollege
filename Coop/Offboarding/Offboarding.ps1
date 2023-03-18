@@ -203,8 +203,14 @@ function Disable_User {
 
         # Confirm completion
         Write-Host ""
-        Write-Host "Automatic replies has been set for $email mailbox." 
+        Write-Host "Automatic replies has been set for $email mailbox."
 
+        # Remove all the licenses from the user
+        $user = Set-MgUserLicense -UserId $email -RemoveLicenses $LicensedUser.SkuId -AddLicenses @{}
+        
+        # Confirm completion
+        Write-Host ""
+        Write-Host "All licenses have been removed from the user account $email."
 
         }
         else {
