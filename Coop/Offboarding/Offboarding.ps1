@@ -70,28 +70,51 @@ function Retrieve_UserInfo {
     # Output the user properties from the variables
     Write-Host `n
     Write-Host "User details for username `"$username`""
-    Write-Host --------------------------------------
+    Write-Host ------------------------------------
     Write-Host "Name: $Name"
     Write-Host "Email address: $email"
     Write-Host "Job Title: $jobTitle"
     Write-Host "Manager Name: $managerName"
     Write-Host "Extension Attribute: $extensionAttribute"
-    Write-Host "Account status: $status"
+    Write-Host "Local AD Account status: $status"
+    Write-Host `n
+    Write-Host "Checking the account on Office 365..."
 
     # Check if the user account exists in the Microsoft 365
     if ($null -ne $(Get-MgUser -UserId $email -ErrorAction SilentlyContinue)){  
 
-    # Get the licenses assigned to the user from MG Powershell
+    # Get the O365 account status, mailbox type and licenses assigned to the user from MG Powershell
+    $O365user = Get-MgUser -UserId $email -Property AccountEnabled
+    $Mailbox = Get-Mailbox -Identity $email
     $LicensedUser  =  Get-MgUserLicenseDetail -UserId $email
-        
-            #get skus and license names
-            $skus = $LicensedUser.SkuPartNumber
-            $skucount = $skus.count
 
-            Write-Output ""
-            Write-Output "$Name has $skucount total licenses assignments: "
-            Write-Output -------------------------------------------------
-            Write-Output $skus
+        if ($O365user.AccountEnabled -eq $false) {
+            $O365status = "Disabled"
+        }
+        else{
+            $O365status = "Enabled"
+        }
+
+        if ($Mailbox.RecipientTypeDetails -eq "UserMailbox") {
+            $Mailboxtype = "UserMailbox"
+        }
+        elseif ($Mailbox.RecipientTypeDetails -eq "SharedMailbox") {
+            $Mailboxtype = "SharedMailbox"
+        }
+
+        Write-Host ""
+        Write-Host "Office 365 account details"
+        Write-Host ------------------------------------
+        Write-Host "Office 365 Account status: $O365status"
+        Write-Host "Office 365 Account mailbox type: $Mailboxtype"
+        
+        $skus = $LicensedUser.SkuPartNumber
+        $skucount = $skus.count
+
+        Write-Output ""
+        Write-Output "$Name has $skucount total licenses assignments: "
+        Write-Output -------------------------------------------------
+        Write-Output $skus
         
     }
     else {
@@ -175,18 +198,31 @@ function Disable_User {
         # Check if the user account exists in the Microsoft 365
         If ($null -ne $(Get-MgUser -UserId $email -ErrorAction SilentlyContinue)) {
         # Disable the user account in the Microsoft 365
-        Update-MgUser -UserId $email -AccountEnabled $false
+        Update-MgUser -UserId $email -AccountEnabled:$false
 
         # Confirm completion
         Write-Host ""
         Write-Host "$username Microsoft 365 user account has been disabled."
 
-        # Convert user mailbox to shared mailbox
-        Set-Mailbox -Identity $email -Type Shared
+        # Check if the user mailbox is a shared mailbox already
+        if ($Mailboxtype -ne "SharedMailbox") {
+            # Convert user mailbox to shared mailbox
+            Set-Mailbox -Identity $email -Type Shared
 
-        # Confirm completion
-        Write-Host ""
-        Write-Host "$email mailbox has been coverted to shared mailbox."
+            # Confirm completion
+            Write-Host ""
+            Write-Host "$email mailbox has been coverted to shared mailbox."
+        }
+        else {
+
+            Write-Host ""
+            Write-Host "$email mailbox is a shared mailbox already!"
+        }
+
+        # Remove user from all the Office365 groups and security groups
+        $O365Groups = Get-EXORecipient -Filter "Members -eq '$($Mailbox.DistinguishedName)'" -ErrorAction SilentlyContinue | Select-Object DisplayName,ExternalDirectoryObjectId,RecipientTypeDetails
+        
+        $AzureGroups = Get-MgUserMemberOf -UserId $email -All -Filter {securityEnabled eq true and mailEnabled eq false} -ConsistencyLevel eventual -Property id,displayName,mailEnabled,securityEnabled,membershipRule,mail,isAssignableToRole,groupTypes
 
         # Delegate mailbox access to the user’s manager 
         Add-MailboxPermission -identity $email -User $managerEmail -AccessRights FullAccess
