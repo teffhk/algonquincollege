@@ -8,7 +8,7 @@ Write-Host ""
 
 Try
 {
-Connect-Graph -Scopes User.ReadWrite.All, Group.ReadWrite.All, Organization.Read.All -ErrorAction Stop
+Connect-Graph -Scopes User.ReadWrite.All, Group.ReadWrite.All, Organization.Read.All, DeviceManagementManagedDevices.ReadWrite.All -ErrorAction Stop
 }
 Catch [Exception]
 {
@@ -87,6 +87,7 @@ function Retrieve_UserInfo {
     $O365user = Get-MgUser -UserId $email -Property AccountEnabled
     $Mailbox = Get-EXOMailbox -Identity $email
     $LicensedUser  =  Get-MgUserLicenseDetail -UserId $email
+    $Registereddevice = Get-MgUserManagedDevice -userId $email -ErrorAction SilentlyContinue
 
         if ($O365user.AccountEnabled -eq $false) {
             $O365status = "Disabled"
@@ -102,11 +103,19 @@ function Retrieve_UserInfo {
             $Mailboxtype = "SharedMailbox"
         }
 
+        if (!$Registereddevice.DeviceName) {
+            $Devicename = "None"
+        }
+        else{
+            $Devicename = $Registereddevice.DeviceName
+        }
+
         Write-Host ""
         Write-Host "Office 365 account details"
         Write-Host ------------------------------------
         Write-Host "Office 365 Account status: $O365status"
         Write-Host "Office 365 Account mailbox type: $Mailboxtype"
+        Write-Host "Intune managed device of the user: $Devicename"
         
         $skus = $LicensedUser.SkuPartNumber
         $skucount = $skus.count
@@ -253,7 +262,7 @@ function Disable_User {
         foreach ($AzureGroup in $AzureGroups) {
             #skip groups with dynamic membership
             if ($AzureGroup.AdditionalProperties.groupTypes -eq "DynamicMembership") {
-                Write-Host "Skipping group ""$($AzureGroup.AdditionalProperties.displayName)"" as it uses dynamic membership."; continue
+                Write-Host "Skipping group ""$($AzureGroup.AdditionalProperties.displayName)"" as it uses dynamic membership. They will be removed by clearing the extensionAttribute."; continue
             }
 
             if ($AzureGroup.AdditionalProperties.securityEnabled -eq "True" -and $AzureGroup.AdditionalProperties.mailEnabled -ne "True"){
@@ -297,6 +306,74 @@ function Disable_User {
             Write-Host "ERROR: $username user account doesn't exists on Microsoft 365!"
         }  
     
+    }
+}
+
+function Remove_device {
+    # Get the user object and set the reset password
+    $user = Get-ADUser -Identity $username -Properties Name, EmailAddress
+    $Name = $user.Name
+    $email = $user.EmailAddress
+
+    If ($null -ne $(Get-MgUserManagedDevice -userId $email -ErrorAction SilentlyContinue)) {
+        
+        $Registereddevices = Get-MgUserManagedDevice -userId $email
+        
+        $Devicename = $Registereddevices.DeviceName
+        $devicecount = $Devicename.count
+
+        Write-Output ""
+        Write-Output "$Name has $devicecount total Intune managed devices: "
+        Write-Output -------------------------------------------------
+        Write-Output $Devicename
+
+        Write-Host ""
+        Write-Host "*** Please confirm to remove ALL or SINGLE Intune managed devices of $username. ***"
+        Write-Host "Type 'ALL' to remove all or 'SINGLE' to remove individual device. Type 'no' to exit:"  -NoNewline
+
+        $removedevice = Read-Host
+
+        If ($removedevice.ToUpper() -eq "ALL") {
+            
+            foreach ($Registereddevice in $Registereddevices){
+
+                Write-Host "Removing the Intune device"$Registereddevice.DeviceName"..."
+                Remove-MgDeviceManagementManagedDevice -ManagedDeviceId $Registereddevice.id -ErrorAction Stop
+            } 
+        }
+        elseif ($removedevice.ToUpper() -eq "SINGLE") {
+
+                Write-Host "Please enter the Intune device name to remove individually: " -NoNewline
+                $individualdevice = Read-Host
+
+                $Deleted = $false
+                
+                foreach ($Registereddevice in $Registereddevices){
+
+                    if ($Registereddevice.DeviceName -eq $individualdevice){
+
+                        Write-Host "Removing the Intune device"$Registereddevice.DeviceName"..."
+                        Remove-MgDeviceManagementManagedDevice -ManagedDeviceId $Registereddevice.id -ErrorAction Stop
+                        Write-Host ""
+                        Write-Host "Intune device"$Registereddevice.DeviceName" has been removed successfully!"
+                        $Deleted = $true
+                        break
+                    }  
+                }
+
+                if (!$Deleted){
+                    Write-Host ""
+                    Write-Host "ERROR: $individualdevice doesn't exist or not belongs to user $Name!"
+                }
+            } 
+        else {
+            Write-Host ""
+            Write-Host "Intune devices of $username user account has not been removed."
+        } 
+    }
+    else{
+        Write-Host `n
+        Write-Host "ERROR: User $username has no Intune managed devices!"
     }
 }
 
@@ -349,6 +426,27 @@ else {
             Write-Host ""
             Write-Host "$username user account is not disabled."
         } 
+
+    Write-Host ""
+    $deviceconfirm = ""
+    $deviceconfirm = Read-Host "Do you want to check the Intune device of $username ? (Y/N)"
+
+    If ($deviceconfirm.ToUpper() -eq "Y") {
+            
+            Write-Host "Getting $username devices from Intune..."
+
+            # Call fucntion 'Remove_device' to disable the user account
+            try
+            {Remove_device}
+
+            # Catch if there is error or exception while disabling the account
+            catch
+            {
+                Write-Warning "An Error has occurred when removing the devices: $($_.Exception.Message)"
+                Start-Sleep -Seconds 10
+            }
+        }
+        
     }
 
     # Check if the username doesnt exist
@@ -357,7 +455,6 @@ else {
         Write-Host "ERROR: Username $username doesn't exists!"
     }      
 }
-
 
 }
 
