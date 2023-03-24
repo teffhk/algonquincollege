@@ -85,7 +85,7 @@ function Retrieve_UserInfo {
 
     # Get the O365 account status, mailbox type and licenses assigned to the user from MG Powershell
     $O365user = Get-MgUser -UserId $email -Property AccountEnabled
-    $Mailbox = Get-Mailbox -Identity $email
+    $Mailbox = Get-EXOMailbox -Identity $email
     $LicensedUser  =  Get-MgUserLicenseDetail -UserId $email
 
         if ($O365user.AccountEnabled -eq $false) {
@@ -139,7 +139,7 @@ function Disable_User {
     else {      
         # Specify the target OU to move the user account to
         $ouPath = "OU=Disabled Accounts,OU=Users,OU=OCRI,DC=RESEARCH,DC=PRV"
-
+        
         $email = $user.EmailAddress
         $managerName = (Get-ADUser $user.Manager).Name
         $managerEmail = (Get-ADUser $user.Manager -Properties EmailAddress).EmailAddress
@@ -165,10 +165,12 @@ function Disable_User {
         # Confirm completion
         Write-Host ""
         Write-Host "$username user account title, manager and extension attribute has been cleared."
+        Write-Host ""
 
         # Remove user from all groups except "All Users"
         foreach ($group in $user.MemberOf) {
-        if ($group -ne "Domain Users" -or $group -ne "O365-USERS") {
+        if ((Get-ADGroup $group).Name -ne "Domain Users" -and (Get-ADGroup $group).Name -ne "O365-USERS") {
+            Write-Host "Removing user from Group ""$((Get-ADGroup $group).Name)""..."
             Remove-ADGroupMember -Identity $group -Members $user -Confirm:$false
         }
         }
@@ -191,12 +193,19 @@ function Disable_User {
         Write-Host ""
         Write-Host "$username user account have been moved to 'Disabled Accounts' OU."
         
-        Write-Host `n
+        Write-Host ""
         Write-Host ----------------------------------------------------------------
         Write-Host "Now connecting to Microsoft 365 to disable the user account..."
+        Start-Sleep -Seconds 3
+        Write-Host "Disabling $username Microsoft 365 user account..."
 
         # Check if the user account exists in the Microsoft 365
         If ($null -ne $(Get-MgUser -UserId $email -ErrorAction SilentlyContinue)) {
+            
+        $O365user = Get-MgUser -UserId $email -Property id
+        $Mailbox = Get-EXOMailbox -Identity $email
+        $LicensedUser  =  Get-MgUserLicenseDetail -UserId $email
+        
         # Disable the user account in the Microsoft 365
         Update-MgUser -UserId $email -AccountEnabled:$false
 
@@ -212,24 +221,57 @@ function Disable_User {
             # Confirm completion
             Write-Host ""
             Write-Host "$email mailbox has been coverted to shared mailbox."
+            Write-Host ""
         }
         else {
 
             Write-Host ""
             Write-Host "$email mailbox is a shared mailbox already!"
+            Write-Host ""
         }
 
-        # Remove user from all the Office365 groups and security groups
+        # Remove user from all the Office365 groups and distribution groups
         $O365Groups = Get-EXORecipient -Filter "Members -eq '$($Mailbox.DistinguishedName)'" -ErrorAction SilentlyContinue | Select-Object DisplayName,ExternalDirectoryObjectId,RecipientTypeDetails
-        
-        $AzureGroups = Get-MgUserMemberOf -UserId $email -All -Filter {securityEnabled eq true and mailEnabled eq false} -ConsistencyLevel eventual -Property id,displayName,mailEnabled,securityEnabled,membershipRule,mail,isAssignableToRole,groupTypes
 
-        # Delegate mailbox access to the user’s manager 
-        Add-MailboxPermission -identity $email -User $managerEmail -AccessRights FullAccess
+        foreach ($O365Group in $O365Groups) {
+                        
+            #handle Microsoft 365 Groups
+            if ($O365Group.RecipientTypeDetails -eq "GroupMailbox") {
+                    Write-Host "Removing user from Microsoft 365 Group ""$($O365Group.DisplayName)"" ..."
+                    Remove-UnifiedGroupLinks -Identity $O365Group.ExternalDirectoryObjectId -Links $Mailbox.DistinguishedName -LinkType Member -Confirm:$false -ErrorAction SilentlyContinue
+            }
+            #handle "regular" groups
+            elseif ($O365Group.RecipientTypeDetails -eq "MailUniversalDistributionGroup" -or $O365Group.RecipientTypeDetails -eq "MailUniversalSecurityGroup") { 
+                    Write-Host "Removing user from Distribution Group ""$($O365Group.DisplayName)"" ..."
+                    Remove-DistributionGroupMember -Identity $O365Group.ExternalDirectoryObjectId -Member $Mailbox.DistinguishedName -BypassSecurityGroupManagerCheck -Confirm:$false -ErrorAction SilentlyContinue 
+            }
+        }
+        
+        $AzureGroups = Get-MgUserMemberOf -UserId $email -All -ConsistencyLevel eventual -Property id,displayName,mailEnabled,securityEnabled,membershipRule,mail,isAssignableToRole,groupTypes
+
+        #Handle Azure AD security groups
+        foreach ($AzureGroup in $AzureGroups) {
+            #skip groups with dynamic membership
+            if ($AzureGroup.AdditionalProperties.groupTypes -eq "DynamicMembership") {
+                Write-Host "Skipping group ""$($AzureGroup.AdditionalProperties.displayName)"" as it uses dynamic membership."; continue
+            }
+
+            if ($AzureGroup.AdditionalProperties.securityEnabled -eq "True" -and $AzureGroup.AdditionalProperties.mailEnabled -ne "True"){
+            Write-Host "Removing user from Azure AD group ""$($AzureGroup.AdditionalProperties.displayName)""..."
+            Remove-MgGroupMemberByRef -GroupId $AzureGroup.id -DirectoryObjectId $O365user.id -ErrorAction SilentlyContinue -Confirm:$false
+            }        
+        }
 
         # Confirm completion
         Write-Host ""
-        Write-Host "$email mailbox access has been delegrated to $managerName."
+        Write-Host "All Microsoft 365, Distribution and Azure AD groups have been removed."
+
+        # Delegate mailbox access to the user’s manager 
+        Add-MailboxPermission -identity $email -User $managerEmail -AccessRights FullAccess -Confirm:$false | Out-Null
+
+        # Confirm completion
+        Write-Host ""
+        Write-Host "$email mailbox access has been delegrated to their manager $managerName."
 
         # Setting Automatic replies for the user mailbox
         $internalmessage = "Thank you for your e-mail. Please note that I am no longer working with Invest Ottawa. For ongoing support and/or any questions, please contact $managerName at $managerEmail. `nThank you for reaching out to Invest Ottawa."
@@ -239,14 +281,15 @@ function Disable_User {
 
         # Confirm completion
         Write-Host ""
-        Write-Host "Automatic replies has been set for $email mailbox."
+        Write-Host "Automatic out of office replies has been set for $email mailbox."
 
         # Remove all the licenses from the user
-        $user = Set-MgUserLicense -UserId $email -RemoveLicenses $LicensedUser.SkuId -AddLicenses @{}
-        
+        Set-MgUserLicense -UserId $email -RemoveLicenses @($LicensedUser.SkuId) -AddLicenses @() -Confirm:$false | Out-Null
+
         # Confirm completion
         Write-Host ""
-        Write-Host "All licenses have been removed from the user account $email."
+        Write-Host "Following licenses have been removed from the user account $email."
+        $LicensedUser.SkuPartNumber
 
         }
         else {
