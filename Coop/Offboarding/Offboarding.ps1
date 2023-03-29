@@ -2,6 +2,9 @@
 # Created by: Cody So
 # Email: cso@investottawa.ca
 
+#Start logging
+Start-Transcript -Path "C:\Script\Logs\Offboarding.txt" -Append -Force | Out-Null
+
 # Connect to Microsoft Graph Powershell
 Write-Host "Connecting to Microsoft Graph..."
 Write-Host ""
@@ -54,14 +57,15 @@ $ErrorActionPreference = "SilentlyContinue"
 function Retrieve_UserInfo {
 
     # Retrieve the user object from Local AD
-    $user = Get-ADUser -Identity $username -Properties Name, EmailAddress, Title, Manager, extensionAttribute1, Telephonenumber
+    $user = Get-ADUser -Identity $username -Properties Name, EmailAddress, Title, Manager, extensionAttribute1, extensionAttribute3, Telephonenumber
     
     # Assign the user account properties
     $Name = $user.Name
     $email = $user.EmailAddress
     $jobTitle = $user.Title
     $managerName = (Get-ADUser $user.Manager).Name
-    $extensionAttribute = $user.extensionAttribute1
+    $extensionAttribute1 = $user.extensionAttribute1
+    $extensionAttribute3 = $user.extensionAttribute3
     $phone = $user.Telephonenumber
 
     if ($user.Enabled -eq $false) {
@@ -79,7 +83,8 @@ function Retrieve_UserInfo {
     Write-Host "Email address: $email"
     Write-Host "Job Title: $jobTitle"
     Write-Host "Manager Name: $managerName"
-    Write-Host "Extension Attribute: $extensionAttribute"
+    Write-Host "Extension Attribute 1: $extensionAttribute1"
+    Write-Host "Extension Attribute 3: $extensionAttribute3"
     Write-Host "Telephone Number: $phone"
     Write-Host "Local AD Account status: $status"
     Write-Host `n
@@ -138,7 +143,7 @@ function Retrieve_UserInfo {
     # Output user account does not exist on Microsoft 365
     else {
         Write-Host `n
-        Write-Host "ERROR: $username user account doesn't exists on Microsoft 365!"
+        Write-Warning "$username user account doesn't exists on Microsoft 365!"
     }  
 }
 
@@ -152,7 +157,7 @@ function Disable_User {
     if ($user.Enabled -eq $false) {
         
         Write-Host ""
-        Write-Host "ERROR: $username user account is already disabled!"
+        Write-Warning "$username user account is already disabled!"
     }
 
     else {      
@@ -161,9 +166,17 @@ function Disable_User {
         
         # Get the user properties from the user object and set the reset password
         $email = $user.EmailAddress
-        $managerName = (Get-ADUser $user.Manager).Name
-        $managerEmail = (Get-ADUser $user.Manager -Properties EmailAddress).EmailAddress
         $newPassword = ConvertTo-SecureString "Can*1234" -AsPlainText -Force
+
+        # Check if the user has manager assigned, if not default to Invest Ottawa email
+        if ($null -ne $user.Manager) {
+            $managerName = (Get-ADUser $user.Manager).Name 
+            $managerEmail = (Get-ADUser $user.Manager -Properties EmailAddress).EmailAddress
+        }
+        else {
+            $managerName = "Invest Ottawa"
+            $managerEmail = "clientservices@investottawa.ca"
+        }
 
         # Disable the user account in the Local AD
         Disable-ADAccount -Identity $user
@@ -180,11 +193,11 @@ function Disable_User {
         Write-Host "$username user account password has been reset."
 
         # Remove the job title, manager, telephone number and extensionAttribute1 attribute
-        Set-ADUser -Identity $username -Clear title, manager, Telephonenumber, extensionAttribute1
+        Set-ADUser -Identity $username -Clear title, manager, Telephonenumber, extensionAttribute1, extensionAttribute3
 
         # Confirm completion
         Write-Host ""
-        Write-Host "$username user account title, manager, telephone number and extension attribute has been cleared."
+        Write-Host "$username user account title, manager, telephone number and extension attributes have been cleared."
         Write-Host ""
 
         # Remove user from all AD groups except "Domain Users" and "O365-USERS" groups
@@ -235,7 +248,7 @@ function Disable_User {
         Write-Host "$username Microsoft 365 user account has been disabled."
 
         # Check if the user mailbox is already a shared mailbox 
-        if ($Mailboxtype -ne "SharedMailbox") {
+        if ($Mailbox.RecipientTypeDetails -ne "SharedMailbox") {
             # Convert user mailbox to shared mailbox
             Set-Mailbox -Identity $email -Type Shared
 
@@ -288,13 +301,16 @@ function Disable_User {
         # Confirm completion
         Write-Host ""
         Write-Host "All Microsoft 365, Distribution and Azure AD groups have been removed."
+        
 
-        # Delegate mailbox access to the user’s manager with ExchangeOnline Powershell
-        Add-MailboxPermission -identity $email -User $managerEmail -AccessRights FullAccess -Confirm:$false | Out-Null
+        if ($null -ne $user.Manager) {
+            # Delegate mailbox access to the user’s manager with ExchangeOnline Powershell
+            Add-MailboxPermission -identity $email -User $managerEmail -AccessRights FullAccess -Confirm:$false -WarningAction SilentlyContinue | Out-Null
 
-        # Confirm completion
-        Write-Host ""
-        Write-Host "$email mailbox access has been delegrated to their manager $managerName."
+            # Confirm completion
+            Write-Host ""
+            Write-Host "$email mailbox access has been delegrated to their manager $managerName."
+        }
 
         # Setting Automatic replies for the user mailbox with ExchangeOnline Powershell
         $internalmessage = "Thank you for your e-mail. Please note that I am no longer working with Invest Ottawa. For ongoing support and/or any questions, please contact $managerName at $managerEmail. `nThank you for reaching out to Invest Ottawa."
@@ -304,21 +320,27 @@ function Disable_User {
 
         # Confirm completion
         Write-Host ""
-        Write-Host "Automatic out of office replies has been set for $email mailbox."
+        Write-Host "Automatic out of office replies has been set for $email mailbox."   
 
-        # Remove all the licenses from the user with Graph Powershell
-        Set-MgUserLicense -UserId $email -RemoveLicenses @($LicensedUser.SkuId) -AddLicenses @() -Confirm:$false | Out-Null
+        # Check if the user has license assigned
+        if (!$LicensedUser.SkuId) {
+            Write-Host ""
+            Write-Host "User account $email doesn't have any license assigned."
+        }
+        else {
+            # Remove all the licenses from the user with Graph Powershell
+            Set-MgUserLicense -UserId $email -RemoveLicenses @($LicensedUser.SkuId) -AddLicenses @() -Confirm:$false | Out-Null
 
-        # Confirm completion
-        Write-Host ""
-        Write-Host "Following licenses have been removed from the user account $email."
-        $LicensedUser.SkuPartNumber
-
+            # Confirm completion
+            Write-Host ""
+            Write-Host "Following licenses have been removed from the user account $email."
+            $LicensedUser.SkuPartNumber
+        }
         }
         # Output the user account does not exist on Microsoft 365
         else {
             Write-Host ""
-            Write-Host "ERROR: $username user account doesn't exists on Microsoft 365!"
+            Write-Warning "$username user account doesn't exists on Microsoft 365!"
         }  
     
     }
@@ -385,7 +407,7 @@ function Remove_device {
                 # Output if the device name is not found or not belongs to the user
                 if (!$Deleted){
                     Write-Host ""
-                    Write-Host "ERROR: $individualdevice doesn't exist or not belongs to user $Name!"
+                    Write-Warning "$individualdevice doesn't exist or not belongs to user $Name!"
                 }
             } 
         else {
@@ -396,7 +418,7 @@ function Remove_device {
     # Output user has no managed devices on Intune
     else{
         Write-Host `n
-        Write-Host "ERROR: User $username has no Intune managed devices!"
+        Write-Warning "User $username has no Intune managed devices!"
     }
 }
 
@@ -478,9 +500,11 @@ else {
     # Output username does not exist in Local AD
     else {
         Write-Host `n
-        Write-Host "ERROR: Username $username doesn't exists!"
+        Write-Warning "Username $username doesn't exists!"
     }      
 }
 
 }
 
+# Stop logging
+Stop-Transcript | Out-Null
