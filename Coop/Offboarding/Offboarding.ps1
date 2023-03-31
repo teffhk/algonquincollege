@@ -3,7 +3,8 @@
 # Email: cso@investottawa.ca
 
 #Start logging
-Start-Transcript -Path "C:\Script\Logs\Offboarding.txt" -Append -Force | Out-Null
+$Date = Get-Date -Format "yyyyMMdd"
+Start-Transcript -Path "C:\Scripts\Offboarding\Logs\Offboarding_$Date.txt" -Append -Force | Out-Null
 
 # Connect to Microsoft Graph Powershell
 Write-Host "Connecting to Microsoft Graph..."
@@ -63,10 +64,16 @@ function Retrieve_UserInfo {
     $Name = $user.Name
     $email = $user.EmailAddress
     $jobTitle = $user.Title
-    $managerName = (Get-ADUser $user.Manager).Name
     $extensionAttribute1 = $user.extensionAttribute1
     $extensionAttribute3 = $user.extensionAttribute3
     $phone = $user.Telephonenumber
+
+    if ($null -ne $user.Manager) {
+        $managerName = (Get-ADUser $user.Manager).Name
+    }
+    else {
+        $managerName = $null
+    }
 
     if ($user.Enabled -eq $false) {
         $status = "Disabled"
@@ -259,7 +266,7 @@ function Disable_User {
         }
         else {
             Write-Host ""
-            Write-Host "$email mailbox is a shared mailbox already!"
+            Write-Host "$email mailbox is a shared mailbox already!" -ForegroundColor DarkCyan
             Write-Host ""
         }
 
@@ -288,7 +295,7 @@ function Disable_User {
         foreach ($AzureGroup in $AzureGroups) {
             # Skip groups with dynamic membership which cannot be removed manaully. They will be removed by clearing the user AD extensionAttribute.
             if ($AzureGroup.AdditionalProperties.groupTypes -eq "DynamicMembership") {
-                Write-Host "Skipping group ""$($AzureGroup.AdditionalProperties.displayName)"" as it uses dynamic membership. They will be removed by clearing the extensionAttribute."; continue
+                Write-Host "Skipping group ""$($AzureGroup.AdditionalProperties.displayName)"" as it uses dynamic membership. They will be removed by clearing the extensionAttribute." -ForegroundColor DarkCyan; continue
             }
 
             # Handle Azure AD security groups with Graph Powershell
@@ -325,7 +332,7 @@ function Disable_User {
         # Check if the user has license assigned
         if (!$LicensedUser.SkuId) {
             Write-Host ""
-            Write-Host "User account $email doesn't have any license assigned."
+            Write-Host "User account $email doesn't have any license assigned." -ForegroundColor DarkCyan
         }
         else {
             # Remove all the licenses from the user with Graph Powershell
@@ -368,10 +375,27 @@ function Remove_device {
         Write-Output -------------------------------------------------
         Write-Output $Devicename
 
-        # Ask for confirmation for removing ALL devices or SINGLE devicefrom Intune
+        $localADdevicelist = @()
+
+        foreach ($Registereddevice in $Registereddevices){
+            If ($null -ne $(Get-ADComputer -filter {Name -eq $Registereddevice.DeviceName} -ErrorAction SilentlyContinue)) {
+                
+                $localADdevicelist += $(Get-ADComputer -Identity $Registereddevice.DeviceName).Name
+            }
+        }
+
+        $localADdevicecount = $localADdevicelist.count
+
+        # Output the local AD managed device details
+        Write-Output ""
+        Write-Output "$Name has $localADdevicecount total local AD managed devices: "
+        Write-Output -------------------------------------------------
+        Write-Output $localADdevicelist
+
+        # Ask for confirmation for removing ALL devices or SINGLE device from local AD and Intune
         Write-Host ""
-        Write-Host "*** Please confirm to remove ALL or SINGLE Intune managed devices of $username. ***"
-        Write-Host "Type 'ALL' to remove all or 'SINGLE' to remove individual device. Type 'NO' to exit:"  -NoNewline
+        Write-Host "*** Please confirm to remove ALL or SINGLE managed devices of $username from local AD and Intune. ***" -ForegroundColor DarkYellow
+        Write-Host "Type 'ALL' to remove all or 'SINGLE' to remove individual device. Type 'NO' to exit: "  -ForegroundColor Green -NoNewline
 
         $removedevice = Read-Host
 
@@ -382,15 +406,26 @@ function Remove_device {
 
                 Write-Host "Removing the Intune device"$Registereddevice.DeviceName"..."
                 Remove-MgDeviceManagementManagedDevice -ManagedDeviceId $Registereddevice.id -ErrorAction Continue
+                Write-Host ""
+                Write-Host "Intune device"$Registereddevice.DeviceName" has been removed successfully!"
+            } 
+
+            foreach ($localADdevice in $localADdevicelist){
+
+                Write-Host "Removing the local AD device"$localADdevice"..."
+                Remove-ADComputer -Identity $localADdevice -ErrorAction Continue
+                Write-Host ""
+                Write-Host "Local AD device"$localADdevice" has been removed successfully!"
             } 
         }
         # Remove individual Intune managed device with Graph Powershell
         elseif ($removedevice.ToUpper() -eq "SINGLE") {
 
                 # Get the Intune device name to remove
-                Write-Host "Please enter the Intune device name to remove individually: " -NoNewline
+                Write-Host "Please enter the device name to remove individually: " -ForegroundColor Green -NoNewline
                 $individualdevice = Read-Host
                 $Deleted = $false
+                $DeletedAD = $false
 
                 # Go through all the retrieved Intune device objects to remove the specified device with Graph Powershell
                 foreach ($Registereddevice in $Registereddevices){
@@ -404,21 +439,39 @@ function Remove_device {
                         break
                     }  
                 }
-                # Output if the device name is not found or not belongs to the user
+                # Output if the device name is not found or not belongs to the user on Intune
                 if (!$Deleted){
                     Write-Host ""
-                    Write-Warning "$individualdevice doesn't exist or not belongs to user $Name!"
+                    Write-Warning "$individualdevice doesn't exist or not belongs to user $Name on Intune!"
+                }
+
+                # Go through all the retrieved local AD device objects to remove the specified device with Graph Powershell
+                foreach ($localADdevice in $localADdevicelist){
+                    if ($localADdevice -eq $individualdevice){
+
+                        Write-Host "Removing the Local AD device"$localADdevice"..."
+                        Remove-ADComputer -Identity $localADdevice -Confirm:$False -ErrorAction Continue
+                        Write-Host ""
+                        Write-Host "Local AD device"$localADdevice" has been removed successfully!"
+                        $DeletedAD = $true
+                        break
+                    }
+                }
+                # Output if the device name is not found or not belongs to the user on Local AD
+                if (!$DeletedAD){
+                    Write-Host ""
+                    Write-Warning "$individualdevice doesn't exist or not belongs to user $Name on Local AD!"
                 }
             } 
         else {
             Write-Host ""
-            Write-Host "Intune devices of $username user account has not been removed."
+            Write-Host "Managed devices of $username user account has not been removed."
         } 
     }
-    # Output user has no managed devices on Intune
+    # Output user has no managed devices
     else{
         Write-Host `n
-        Write-Warning "User $username has no Intune managed devices!"
+        Write-Warning "User $username has no managed devices!"
     }
 }
 
@@ -430,7 +483,7 @@ while($exitprogram -eq 0 ) {
     Write-Host User Offboarding Script:
     Write-Host -------------------------------------
 
-Write-Host "Please enter the username OR enter q to quit: " -NoNewline
+Write-Host "Please enter the username OR enter q to quit: " -NoNewline -ForegroundColor Green
 
 # Read the username input
 $username = Read-Host
@@ -449,10 +502,33 @@ else {
     # Call fucntion 'Retrieve_UserInfo' to retrieve user account inofrmation from local AD and Microsoft 365
     Retrieve_UserInfo
 
+    # Ask if continue to manage the Local AD and Intune managed devices of the user
+    Write-Host ""
+    Write-Host "Do you want to check the managed devices of $username ? (Y/N) " -ForegroundColor Green -NoNewline
+
+    $deviceconfirm = Read-Host
+
+    If ($deviceconfirm.ToUpper() -eq "Y") {
+            
+            Write-Host "Getting $username devices from Local AD and Intune..."
+
+            # Call fucntion 'Remove_device' to remove Intune devices
+            try
+            {Remove_device}
+
+            # Catch if there is error or exception while removing the devices from Intune
+            catch
+            {
+                Write-Warning "An Error has occurred when removing the devices: $($_.Exception.Message)"
+                Start-Sleep -Seconds 10
+            }
+        }
+
     # Ask for confirmation for disabling user account in local AD and Microsoft 365
     Write-Host `n
-    $confirm = ""
-    $confirm = Read-Host "*** PLEASE CONFIRM TO DISABLE THE USERNAME $username. Type 'YES' to confirm. ***"
+    Write-Host "*** PLEASE CONFIRM TO DISABLE THE USERNAME $username. Type 'YES' to confirm. *** " -NoNewline -ForegroundColor DarkYellow
+
+    $confirm = Read-Host
         
         If ($confirm.ToUpper() -eq "YES") {
             
@@ -473,27 +549,6 @@ else {
             Write-Host ""
             Write-Host "$username user account is not disabled."
         } 
-
-    # Ask if continue to manage the Intune managed devices of the user
-    Write-Host ""
-    $deviceconfirm = ""
-    $deviceconfirm = Read-Host "Do you want to check the Intune device of $username ? (Y/N)"
-
-    If ($deviceconfirm.ToUpper() -eq "Y") {
-            
-            Write-Host "Getting $username devices from Intune..."
-
-            # Call fucntion 'Remove_device' to remove Intune devices
-            try
-            {Remove_device}
-
-            # Catch if there is error or exception while removing the devices from Intune
-            catch
-            {
-                Write-Warning "An Error has occurred when removing the devices: $($_.Exception.Message)"
-                Start-Sleep -Seconds 10
-            }
-        }
         
     }
 
