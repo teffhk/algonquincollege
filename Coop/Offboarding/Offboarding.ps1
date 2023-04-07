@@ -4,7 +4,6 @@
 
 #Start logging
 $Date = Get-Date -Format "yyyyMMdd"
-Start-Transcript -Path "C:\Scripts\Offboarding\Logs\Offboarding_$Date.txt" -Append -Force | Out-Null
 
 # Connect to Microsoft Graph Powershell
 Write-Host "Connecting to Microsoft Graph..."
@@ -246,6 +245,7 @@ function Disable_User {
         $M365user = Get-MgUser -UserId $email -Property id
         $Mailbox = Get-EXOMailbox -Identity $email
         $LicensedUser  =  Get-MgUserLicenseDetail -UserId $email
+        $AssignedApps  = Get-MgUserAppRoleAssignment -UserId $email
         
         # Disable the user account in the Microsoft 365 with Graph Powershell
         Update-MgUser -UserId $email -AccountEnabled:$false
@@ -279,12 +279,12 @@ function Disable_User {
                         
             # Handle Microsoft 365 Groups with ExchangeOnline Powershell
             if ($M365Group.RecipientTypeDetails -eq "GroupMailbox") {
-                    Write-Host "Removing user from Microsoft 365 Group ""$($M365Group.DisplayName)"" ..."
+                    Write-Host "Removing user from Microsoft 365 Group ""$($M365Group.DisplayName)""..."
                     Remove-UnifiedGroupLinks -Identity $M365Group.ExternalDirectoryObjectId -Links $Mailbox.DistinguishedName -LinkType Member -Confirm:$false -ErrorAction SilentlyContinue
             }
             # Handle "regular" groups with ExchangeOnline Powershell
             elseif ($M365Group.RecipientTypeDetails -eq "MailUniversalDistributionGroup" -or $M365Group.RecipientTypeDetails -eq "MailUniversalSecurityGroup") { 
-                    Write-Host "Removing user from Distribution Group ""$($M365Group.DisplayName)"" ..."
+                    Write-Host "Removing user from Distribution Group ""$($M365Group.DisplayName)""..."
                     Remove-DistributionGroupMember -Identity $M365Group.ExternalDirectoryObjectId -Member $Mailbox.DistinguishedName -BypassSecurityGroupManagerCheck -Confirm:$false -ErrorAction SilentlyContinue 
             }
         }
@@ -327,7 +327,35 @@ function Disable_User {
 
         # Confirm completion
         Write-Host ""
-        Write-Host "Automatic out of office replies has been set for $email mailbox."   
+        Write-Host "Automatic out of office replies has been set for $email mailbox."
+        Write-Host ""
+
+        # Remove user from assigned Azure enterprise applications (LastPass, Certify, Mural)
+        if ($null -ne $AssignedApps) {
+            #List for applications that will be removed
+            $AssignedApplist = @()
+
+            foreach ($AssignedApp in $AssignedApps) {
+                # Check to remove only LastPass, Certify, Mural from user assigned Enterprise application. ** ADD THE APPLICTION NAMES HERE IF YOU WANT TO REMOVE ADDITIONAL APPLICATIONS **
+                if ($AssignedApp.ResourceDisplayName -eq "LastPass" -or $AssignedApp.ResourceDisplayName -eq "Certify"-or $AssignedApp.ResourceDisplayName -eq "Mural") {
+                    Write-Host "Removing user from Enterprise application ""$($AssignedApp.ResourceDisplayName)""..."
+                    Remove-MgServicePrincipalAppRoleAssignedTo -AppRoleAssignmentId $AssignedApp.Id -ServicePrincipalId $AssignedApp.ResourceId -Confirm:$false -WarningAction SilentlyContinue
+                    
+                    $AssignedApplist += $AssignedApp.ResourceDisplayName
+                }
+            }
+            # Confirm completion
+            if ($AssignedApplist) {
+                Write-Host ""
+                Write-Host "Enterprise applications"$($AssignedApplist -join ", ")"have been removed from the user account $email."
+            }
+            else {
+                Write-Host "User account $email doesn't have LastPass, Certify nor Mural assigned." -ForegroundColor DarkCyan
+            }
+        }
+        else {
+            Write-Host "User account $email doesn't have any enterprise applications assigned." -ForegroundColor DarkCyan
+        }
 
         # Check if the user has license assigned
         if (!$LicensedUser.SkuId) {
@@ -498,6 +526,8 @@ If ($username -eq "Q" -or $username -eq "q" ) {
 else {
     # Check if the username exists in the local AD
     If ($null -ne $(Get-ADUser -Identity $username)) {
+    # Start the log transcript when the user is found
+    Start-Transcript -Path "C:\Scripts\Offboarding\Logs\Offboarding_$Date`_$username.txt" -Append -Force | Out-Null
 
     # Call fucntion 'Retrieve_UserInfo' to retrieve user account inofrmation from local AD and Microsoft 365
     Retrieve_UserInfo
@@ -544,10 +574,15 @@ else {
                 Write-Warning "An Error has occurred when disabling the account: $($_.Exception.Message)"
                 Start-Sleep -Seconds 10
             }
+            # Stop logging
+            Stop-Transcript | Out-Null
         }
         else {
             Write-Host ""
             Write-Host "$username user account is not disabled."
+           
+            # Stop logging
+            Stop-Transcript | Out-Null
         } 
         
     }
@@ -560,6 +595,3 @@ else {
 }
 
 }
-
-# Stop logging
-Stop-Transcript | Out-Null
