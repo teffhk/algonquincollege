@@ -9,10 +9,10 @@ $Date = Get-Date -Format "yyyyMMdd"
 Write-Host "Connecting to Microsoft Graph..."
 Write-Host ""
 
-# Connect with Graph permission scopes of User.ReadWrite.All, Group.ReadWrite.All, Organization.Read.All, DeviceManagementManagedDevices.ReadWrite.All
+# Connect with Graph permission scopes of User.ReadWrite.All, Group.ReadWrite.All, Organization.Read.All, DeviceManagementManagedDevices.ReadWrite.All, AppRoleAssignment.ReadWrite.All, Directory.AccessAsUser.All
 Try
 {
-Connect-Graph -Scopes User.ReadWrite.All, Group.ReadWrite.All, Organization.Read.All, DeviceManagementManagedDevices.ReadWrite.All -ErrorAction Stop
+Connect-Graph -Scopes User.ReadWrite.All, Group.ReadWrite.All, Organization.Read.All, DeviceManagementManagedDevices.ReadWrite.All, AppRoleAssignment.ReadWrite.All, Directory.AccessAsUser.All -ErrorAction Stop
 }
 # Script ends if the Graph autherication does not succeed
 Catch [Exception]
@@ -55,6 +55,7 @@ $ErrorActionPreference = "SilentlyContinue"
 
 # Function to retrieve the user account information from Local AD and Microsoft 365
 function Retrieve_UserInfo {
+    $ErrorActionPreference = "SilentlyContinue"
 
     # Retrieve the user object from Local AD
     $user = Get-ADUser -Identity $username -Properties Name, EmailAddress, Title, Manager, extensionAttribute1, extensionAttribute3, Telephonenumber
@@ -155,6 +156,7 @@ function Retrieve_UserInfo {
 
 # Function to disable the user account on Local AD and Microsoft 365
 function Disable_User {
+    $ErrorActionPreference = "SilentlyContinue"
 
     # Get the user object from the Local AD
     $user = Get-ADUser -Identity $username -Properties MemberOf, EmailAddress, Manager
@@ -172,7 +174,7 @@ function Disable_User {
         
         # Get the user properties from the user object and set the reset password
         $email = $user.EmailAddress
-        $newPassword = ConvertTo-SecureString "Can*1234" -AsPlainText -Force
+        $newPassword = ConvertTo-SecureString "" -AsPlainText -Force
 
         # Check if the user has manager assigned, if not default to Invest Ottawa email
         if ($null -ne $user.Manager) {
@@ -282,10 +284,16 @@ function Disable_User {
                     Write-Host "Removing user from Microsoft 365 Group ""$($M365Group.DisplayName)""..."
                     Remove-UnifiedGroupLinks -Identity $M365Group.ExternalDirectoryObjectId -Links $Mailbox.DistinguishedName -LinkType Member -Confirm:$false -ErrorAction SilentlyContinue
             }
-            # Handle "regular" groups with ExchangeOnline Powershell
+            # Handle "regular" groups with ExchangeOnline Powershell and check if the distribution group is synced from on-premises AD
             elseif ($M365Group.RecipientTypeDetails -eq "MailUniversalDistributionGroup" -or $M365Group.RecipientTypeDetails -eq "MailUniversalSecurityGroup") { 
-                    Write-Host "Removing user from Distribution Group ""$($M365Group.DisplayName)""..."
-                    Remove-DistributionGroupMember -Identity $M365Group.ExternalDirectoryObjectId -Member $Mailbox.DistinguishedName -BypassSecurityGroupManagerCheck -Confirm:$false -ErrorAction SilentlyContinue 
+                    if ($(Get-DistributionGroup -Identity $M365Group.ExternalDirectoryObjectId).IsDirSynced -eq $False ) {
+                        Write-Host "Removing user from Distribution Group ""$($M365Group.DisplayName)""..."
+                        Remove-DistributionGroupMember -Identity $M365Group.ExternalDirectoryObjectId -Member $Mailbox.DistinguishedName -BypassSecurityGroupManagerCheck -Confirm:$false -ErrorAction SilentlyContinue 
+                    }
+                    else {
+                        # Skip groups which are being synchronized from on-premises AD. They were removed by removing the groups from user in the local AD.
+                        Write-Host "Skipping group ""$($M365Group.DisplayName)"" as it is synced from on-premises AD. It will be removed by removing the group in local AD." -ForegroundColor DarkCyan; 
+                    }
             }
         }
         
@@ -301,7 +309,7 @@ function Disable_User {
             # Handle Azure AD security groups with Graph Powershell
             if ($AzureGroup.AdditionalProperties.securityEnabled -eq "True" -and $AzureGroup.AdditionalProperties.mailEnabled -ne "True"){
             Write-Host "Removing user from Azure AD group ""$($AzureGroup.AdditionalProperties.displayName)""..."
-            Remove-MgGroupMemberByRef -GroupId $AzureGroup.id -DirectoryObjectId $M365user.id -ErrorAction SilentlyContinue -Confirm:$false
+            Remove-MgGroupMemberByRef -GroupId $AzureGroup.id -DirectoryObjectId $M365user.id -Confirm:$false -ErrorAction SilentlyContinue 
             }        
         }
 
@@ -330,27 +338,31 @@ function Disable_User {
         Write-Host "Automatic out of office replies has been set for $email mailbox."
         Write-Host ""
 
-        # Remove user from assigned Azure enterprise applications (LastPass, Certify, Mural)
+        # Remove user from assigned Azure enterprise applications 
         if ($null -ne $AssignedApps) {
-            #List for applications that will be removed
+            # Set the check list for applications that will be removed (LastPass, Certify, Mural)
+            # ADD THE APPLICTION NAMES HERE IF YOU WANT TO REMOVE ADDITIONAL APPLICATIONS
+            $CheckApplist = @('LastPass', 'Certify', 'Mural')
+
+            #List of user assigned applications that match the check list 
             $AssignedApplist = @()
 
             foreach ($AssignedApp in $AssignedApps) {
-                # Check to remove only LastPass, Certify, Mural from user assigned Enterprise application. ** ADD THE APPLICTION NAMES HERE IF YOU WANT TO REMOVE ADDITIONAL APPLICATIONS **
-                if ($AssignedApp.ResourceDisplayName -eq "LastPass" -or $AssignedApp.ResourceDisplayName -eq "Certify"-or $AssignedApp.ResourceDisplayName -eq "Mural") {
+                # Check to remove only the matched applications from user assigned Enterprise applications. 
+                if ($AssignedApp.ResourceDisplayName -in $CheckApplist) {
                     Write-Host "Removing user from Enterprise application ""$($AssignedApp.ResourceDisplayName)""..."
-                    Remove-MgServicePrincipalAppRoleAssignedTo -AppRoleAssignmentId $AssignedApp.Id -ServicePrincipalId $AssignedApp.ResourceId -Confirm:$false -WarningAction SilentlyContinue
+                    Remove-MgServicePrincipalAppRoleAssignedTo -AppRoleAssignmentId $AssignedApp.Id -ServicePrincipalId $AssignedApp.ResourceId -Confirm:$false -ErrorAction SilentlyContinue
                     
                     $AssignedApplist += $AssignedApp.ResourceDisplayName
                 }
             }
             # Confirm completion
-            if ($AssignedApplist) {
+            if ($null -ne $AssignedApplist) {
                 Write-Host ""
                 Write-Host "Enterprise applications"$($AssignedApplist -join ", ")"have been removed from the user account $email."
             }
             else {
-                Write-Host "User account $email doesn't have LastPass, Certify nor Mural assigned." -ForegroundColor DarkCyan
+                Write-Host "User account $email doesn't have"$($CheckApplist -join ", ")"assigned." -ForegroundColor DarkCyan
             }
         }
         else {
@@ -364,7 +376,7 @@ function Disable_User {
         }
         else {
             # Remove all the licenses from the user with Graph Powershell
-            Set-MgUserLicense -UserId $email -RemoveLicenses @($LicensedUser.SkuId) -AddLicenses @() -Confirm:$false | Out-Null
+            Set-MgUserLicense -UserId $email -RemoveLicenses @($LicensedUser.SkuId) -AddLicenses @() -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
 
             # Confirm completion
             Write-Host ""
@@ -383,16 +395,19 @@ function Disable_User {
 
 # Function to check and remove the Intune managed devices of the user
 function Remove_device {
+    $ErrorActionPreference = "SilentlyContinue"
+
     # Get the user object from local AD
     $user = Get-ADUser -Identity $username -Properties Name, EmailAddress
     $Name = $user.Name
     $email = $user.EmailAddress
+    $M365user = Get-MgUser -userId $email -Property id -ErrorAction SilentlyContinue
+
+    # Get all the Intune managed devices object of the user with Graph Powershell
+    $Registereddevices = Get-MgUserManagedDevice -userId $email -ErrorAction SilentlyContinue
     
     # Check if the user has any Intune managed devices
-    If ($null -ne $(Get-MgUserManagedDevice -userId $email -ErrorAction SilentlyContinue)) {
-        
-        # Get all the Intune managed devices object of the user with Graph Powershell
-        $Registereddevices = Get-MgUserManagedDevice -userId $email
+    If ($null -ne $Registereddevices) {
         
         $Devicename = $Registereddevices.DeviceName
         $devicecount = $Devicename.count
@@ -403,8 +418,10 @@ function Remove_device {
         Write-Output -------------------------------------------------
         Write-Output $Devicename
 
+        # list for local AD devices that matches the Intune device names
         $localADdevicelist = @()
 
+        # Check for the user Intune devices that exist on local AD as well
         foreach ($Registereddevice in $Registereddevices){
             If ($null -ne $(Get-ADComputer -filter {Name -eq $Registereddevice.DeviceName} -ErrorAction SilentlyContinue)) {
                 
@@ -420,9 +437,9 @@ function Remove_device {
         Write-Output -------------------------------------------------
         Write-Output $localADdevicelist
 
-        # Ask for confirmation for removing ALL devices or SINGLE device from local AD and Intune
+        # Ask for confirmation for removing ALL devices or SINGLE device from Intune, Azure AD and local AD
         Write-Host ""
-        Write-Host "*** Please confirm to remove ALL or SINGLE managed devices of $username from local AD and Intune. ***" -ForegroundColor DarkYellow
+        Write-Host "*** Please confirm to remove ALL or SINGLE managed devices of $username from Intune, Azure AD and local AD. ***" -ForegroundColor DarkYellow
         Write-Host "Type 'ALL' to remove all or 'SINGLE' to remove individual device. Type 'NO' to exit: "  -ForegroundColor Green -NoNewline
 
         $removedevice = Read-Host
@@ -433,15 +450,33 @@ function Remove_device {
             foreach ($Registereddevice in $Registereddevices){
 
                 Write-Host "Removing the Intune device"$Registereddevice.DeviceName"..."
-                Remove-MgDeviceManagementManagedDevice -ManagedDeviceId $Registereddevice.id -ErrorAction Continue
+                Remove-MgDeviceManagementManagedDevice -ManagedDeviceId $Registereddevice.id -Confirm:$False -ErrorAction Continue
                 Write-Host ""
-                Write-Host "Intune device"$Registereddevice.DeviceName" has been removed successfully!"
-            } 
+                Write-Host "Intune device"$Registereddevice.DeviceName"has been removed successfully!"
 
+                # Search for the device object of the Intune device on Azure AD which belongs to the user
+                if ($null -ne $M365user) {
+
+                    $AzureADdevice = Get-MgDevice -Search "displayName:$($Registereddevice.DeviceName)" -ConsistencyLevel eventual -ErrorAction SilentlyContinue | Where-Object {$_.PhysicalIDs -match $M365user.id}
+
+                    # Remove the device object on the Azure AD as well
+                    if ($null -ne $AzureADdevice) {
+
+                        Write-Host ""
+                        Write-Host "Removing the Azure AD device object of"$Registereddevice.DeviceName"..."
+                        Remove-MgDevice -DeviceId $AzureADdevice.id -Confirm:$False -ErrorAction Continue
+                        Write-Host ""
+                        Write-Host "Azure AD device object of"$Registereddevice.DeviceName"has been removed successfully!"
+                    }
+                }
+            }
+
+            # Remove all the found devices on the local AD as well
             foreach ($localADdevice in $localADdevicelist){
-
+                
+                Write-Host ""
                 Write-Host "Removing the local AD device"$localADdevice"..."
-                Remove-ADComputer -Identity $localADdevice -ErrorAction Continue
+                Remove-ADComputer -Identity $localADdevice -Confirm:$False -ErrorAction Continue
                 Write-Host ""
                 Write-Host "Local AD device"$localADdevice" has been removed successfully!"
             } 
@@ -449,7 +484,7 @@ function Remove_device {
         # Remove individual Intune managed device with Graph Powershell
         elseif ($removedevice.ToUpper() -eq "SINGLE") {
 
-                # Get the Intune device name to remove
+                # Get the device name to remove
                 Write-Host "Please enter the device name to remove individually: " -ForegroundColor Green -NoNewline
                 $individualdevice = Read-Host
                 $Deleted = $false
@@ -460,12 +495,28 @@ function Remove_device {
                     if ($Registereddevice.DeviceName -eq $individualdevice){
 
                         Write-Host "Removing the Intune device"$Registereddevice.DeviceName"..."
-                        Remove-MgDeviceManagementManagedDevice -ManagedDeviceId $Registereddevice.id -ErrorAction Continue
+                        Remove-MgDeviceManagementManagedDevice -ManagedDeviceId $Registereddevice.id -Confirm:$False -ErrorAction Continue
                         Write-Host ""
-                        Write-Host "Intune device"$Registereddevice.DeviceName" has been removed successfully!"
+                        Write-Host "Intune device"$Registereddevice.DeviceName"has been removed successfully!"
+
+                        # Search for the device object of the Intune device on Azure AD which belongs to the user
+                        if ($null -ne $M365user) {
+
+                            $AzureADdevice = Get-MgDevice -Search "displayName:$($Registereddevice.DeviceName)" -ConsistencyLevel eventual -ErrorAction SilentlyContinue | Where-Object {$_.PhysicalIDs -match $M365user.id}
+                        
+                            # Remove the device object on the Azure AD as well
+                            if ($null -ne $AzureADdevice) {
+
+                                Write-Host ""
+                                Write-Host "Removing the Azure AD device object of"$Registereddevice.DeviceName"..."
+                                Remove-MgDevice -DeviceId $AzureADdevice.id -Confirm:$False -ErrorAction Continue
+                                Write-Host ""
+                                Write-Host "Azure AD device object of"$Registereddevice.DeviceName"has been removed successfully!"
+                            }
+                        }
                         $Deleted = $true
                         break
-                    }  
+                    }
                 }
                 # Output if the device name is not found or not belongs to the user on Intune
                 if (!$Deleted){
@@ -473,10 +524,11 @@ function Remove_device {
                     Write-Warning "$individualdevice doesn't exist or not belongs to user $Name on Intune!"
                 }
 
-                # Go through all the retrieved local AD device objects to remove the specified device with Graph Powershell
+                # Go through all the retrieved local AD device objects to remove the specified device from local AD
                 foreach ($localADdevice in $localADdevicelist){
                     if ($localADdevice -eq $individualdevice){
-
+                        
+                        Write-Host ""
                         Write-Host "Removing the Local AD device"$localADdevice"..."
                         Remove-ADComputer -Identity $localADdevice -Confirm:$False -ErrorAction Continue
                         Write-Host ""
@@ -485,7 +537,7 @@ function Remove_device {
                         break
                     }
                 }
-                # Output if the device name is not found or not belongs to the user on Local AD
+                # Output if the device name is not found or not belongs to the user on local AD
                 if (!$DeletedAD){
                     Write-Host ""
                     Write-Warning "$individualdevice doesn't exist or not belongs to user $Name on Local AD!"
