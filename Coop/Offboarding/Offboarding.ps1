@@ -2,6 +2,9 @@
 # Created by: Cody So
 # Email: cso@investottawa.ca
 
+#Requires -RunAsAdministrator
+#Requires -Modules ExchangeOnlineManagement
+
 #Start logging
 $Date = Get-Date -Format "yyyyMMdd"
 
@@ -263,7 +266,7 @@ function Disable_User {
 
             # Confirm completion
             Write-Host ""
-            Write-Host "$email mailbox has been coverted to shared mailbox."
+            Write-Host "$email mailbox has been converted to shared mailbox."
             Write-Host ""
         }
         else {
@@ -401,7 +404,6 @@ function Remove_device {
     $user = Get-ADUser -Identity $username -Properties Name, EmailAddress
     $Name = $user.Name
     $email = $user.EmailAddress
-    $M365user = Get-MgUser -userId $email -Property id -ErrorAction SilentlyContinue
 
     # Get all the Intune managed devices object of the user with Graph Powershell
     $Registereddevices = Get-MgUserManagedDevice -userId $email -ErrorAction SilentlyContinue
@@ -455,20 +457,17 @@ function Remove_device {
                 Write-Host "Intune device"$Registereddevice.DeviceName"has been removed successfully!"
 
                 # Search for the device object of the Intune device on Azure AD which belongs to the user
-                if ($null -ne $M365user) {
+                $AzureADdevice = Get-MgDevice -Search "DeviceId:$($Registereddevice.AzureAdDeviceId)" -ConsistencyLevel eventual -ErrorAction SilentlyContinue
 
-                    $AzureADdevice = Get-MgDevice -Search "displayName:$($Registereddevice.DeviceName)" -ConsistencyLevel eventual -ErrorAction SilentlyContinue | Where-Object {$_.PhysicalIDs -match $M365user.id}
+                # Remove the device object on the Azure AD as well
+                if ($null -ne $AzureADdevice) {
 
-                    # Remove the device object on the Azure AD as well
-                    if ($null -ne $AzureADdevice) {
-
-                        Write-Host ""
-                        Write-Host "Removing the Azure AD device object of"$Registereddevice.DeviceName"..."
-                        Remove-MgDevice -DeviceId $AzureADdevice.id -Confirm:$False -ErrorAction Continue
-                        Write-Host ""
-                        Write-Host "Azure AD device object of"$Registereddevice.DeviceName"has been removed successfully!"
-                    }
-                }
+                    Write-Host ""
+                    Write-Host "Removing the Azure AD device object of"$Registereddevice.DeviceName"..."
+                    Remove-MgDevice -DeviceId $AzureADdevice.id -Confirm:$False -ErrorAction Continue
+                    Write-Host ""
+                    Write-Host "Azure AD device object of"$Registereddevice.DeviceName"has been removed successfully!"
+                }   
             }
 
             # Remove all the found devices on the local AD as well
@@ -500,19 +499,16 @@ function Remove_device {
                         Write-Host "Intune device"$Registereddevice.DeviceName"has been removed successfully!"
 
                         # Search for the device object of the Intune device on Azure AD which belongs to the user
-                        if ($null -ne $M365user) {
-
-                            $AzureADdevice = Get-MgDevice -Search "displayName:$($Registereddevice.DeviceName)" -ConsistencyLevel eventual -ErrorAction SilentlyContinue | Where-Object {$_.PhysicalIDs -match $M365user.id}
+                        $AzureADdevice = Get-MgDevice -Search "DeviceId:$($Registereddevice.AzureAdDeviceId)" -ConsistencyLevel eventual -ErrorAction SilentlyContinue
                         
-                            # Remove the device object on the Azure AD as well
-                            if ($null -ne $AzureADdevice) {
+                        # Remove the device object on the Azure AD as well
+                        if ($null -ne $AzureADdevice) {
 
-                                Write-Host ""
-                                Write-Host "Removing the Azure AD device object of"$Registereddevice.DeviceName"..."
-                                Remove-MgDevice -DeviceId $AzureADdevice.id -Confirm:$False -ErrorAction Continue
-                                Write-Host ""
-                                Write-Host "Azure AD device object of"$Registereddevice.DeviceName"has been removed successfully!"
-                            }
+                            Write-Host ""
+                            Write-Host "Removing the Azure AD device object of"$Registereddevice.DeviceName"..."
+                            Remove-MgDevice -DeviceId $AzureADdevice.id -Confirm:$False -ErrorAction Continue
+                            Write-Host ""
+                            Write-Host "Azure AD device object of"$Registereddevice.DeviceName"has been removed successfully!"
                         }
                         $Deleted = $true
                         break
