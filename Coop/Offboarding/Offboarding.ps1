@@ -1,6 +1,6 @@
 # Offboarding.ps1 
-# Created by: Cody So
-# Email: cso@investottawa.ca
+# Author: Cody So
+# Contact: teffhk@gmail.com
 
 #Requires -RunAsAdministrator
 #Requires -Modules ExchangeOnlineManagement
@@ -577,7 +577,7 @@ else {
     # Start the log transcript when the user is found
     Start-Transcript -Path "C:\Scripts\Offboarding\Logs\Offboarding_$Date`_$username.txt" -Append -Force | Out-Null
 
-    # Call fucntion 'Retrieve_UserInfo' to retrieve user account inofrmation from local AD and Microsoft 365
+    # Call function 'Retrieve_UserInfo' to retrieve user account information from local AD and Microsoft 365
     Retrieve_UserInfo
 
     # Ask if continue to manage the Local AD and Intune managed devices of the user
