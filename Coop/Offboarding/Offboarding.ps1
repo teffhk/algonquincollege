@@ -1,7 +1,6 @@
 # Offboarding.ps1 
 # Author: Cody So
 # Contact: teffhk@gmail.com
-# Test 29/06/2023
 
 #Requires -RunAsAdministrator
 #Requires -Modules ExchangeOnlineManagement
